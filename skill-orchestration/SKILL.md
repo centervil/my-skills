@@ -21,10 +21,10 @@ YAMLオブジェクトがスキーマに適合しているかを検証するス 
 #### Usage
 ```bash
 # DispatchObject の検証
-python3 .gemini/skills/skill-orchestration/scripts/validate_interaction.py dispatch "path/to/dispatch.yaml"
+python3 skills/skill-orchestration/scripts/validate_interaction.py dispatch "path/to/dispatch.yaml"
 
 # ResultObject の検証
-python3 .gemini/skills/skill-orchestration/scripts/validate_interaction.py result "path/to/result.yaml"
+python3 skills/skill-orchestration/scripts/validate_interaction.py result "path/to/result.yaml"
 ```
 
 

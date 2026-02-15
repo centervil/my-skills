@@ -12,7 +12,7 @@ fi
 
 TARGET_DIR=".ops/metrics/collectors"
 TARGET_FILE="$TARGET_DIR/$NAME.sh"
-TEMPLATE=".gemini/skills/skill-metrics-manager/references/collector-template.sh"
+TEMPLATE="skills/skill-metrics-manager/references/collector-template.sh"
 
 mkdir -p "$TARGET_DIR"
 

@@ -29,10 +29,10 @@ description: プロジェクトの進捗状況（project_state.md やタスク�
 
 ```bash
 # 特定のタスクを完了にする
-bash .gemini/skills/skill-state-manager/scripts/update-state.sh <ISSUE_ID> "" <TASK_ID>
+bash skills/skill-state-manager/scripts/update-state.sh <ISSUE_ID> "" <TASK_ID>
 
 # Issue全体を完了にする（project_state.md も更新されます）
-bash .gemini/skills/skill-state-manager/scripts/update-state.sh <ISSUE_ID> completed
+bash skills/skill-state-manager/scripts/update-state.sh <ISSUE_ID> completed
 ```
 
 ---

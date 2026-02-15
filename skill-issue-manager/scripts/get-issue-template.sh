@@ -1,5 +1,5 @@
 #!/bin/bash
-# .gemini/skills/skill-issue-manager/scripts/get-issue-template.sh
+# skills/skill-issue-manager/scripts/get-issue-template.sh
 
 TEMPLATE_DIR=".github/ISSUE_TEMPLATE"
 

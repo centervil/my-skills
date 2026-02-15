@@ -35,10 +35,10 @@ err: null
 '
 
 echo "Testing Valid Dispatch..."
-python3 .gemini/skills/skill-orchestration/scripts/validate_interaction.py dispatch "$VALID_DISPATCH"
+python3 skills/skill-orchestration/scripts/validate_interaction.py dispatch "$VALID_DISPATCH"
 echo "Testing Invalid Dispatch..."
-python3 .gemini/skills/skill-orchestration/scripts/validate_interaction.py dispatch "$INVALID_DISPATCH"
+python3 skills/skill-orchestration/scripts/validate_interaction.py dispatch "$INVALID_DISPATCH"
 echo "Testing Valid Result..."
-python3 .gemini/skills/skill-orchestration/scripts/validate_interaction.py result "$VALID_RESULT"
+python3 skills/skill-orchestration/scripts/validate_interaction.py result "$VALID_RESULT"
 echo "Testing Invalid Result..."
-python3 .gemini/skills/skill-orchestration/scripts/validate_interaction.py result "$INVALID_RESULT"
+python3 skills/skill-orchestration/scripts/validate_interaction.py result "$INVALID_RESULT"

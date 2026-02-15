@@ -21,7 +21,7 @@ Procedural instructions for the AI to follow when using this skill.
 ## CLI Usage (Optional)
 If the skill has associated scripts, describe them here.
 ```bash
-bash .gemini/skills/skill-id/scripts/command.sh [args]
+bash skills/skill-id/scripts/command.sh [args]
 ```
 
 ## Resources
