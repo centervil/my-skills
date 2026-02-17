@@ -8,6 +8,8 @@ description: ユーザーの抽象的な要望を具体化し、実装可能な�
 ## Overview
 このスキルは、ユーザーとの対話を通じて「何を作りたいか」を詳細に定義します。IDD（Issue-Driven Development）プロセスの最初期段階（Phase: Start）において、品質のガードレールとして機能します。
 
+**統合のお知らせ**: このスキルは `skill-issue-manager` (devSkill) の「Phase: Start」フェーズに統合されました。通常の開発プロセス（`dev` コマンド等）では、自動的に要件の深掘りステップが実行されます。
+
 ## Capabilities
 1. **Existing Issue Deep Dive**: 既存のIssueの内容を分析し、不足している情報をインタビューで補完します。
 2. **New Issue Definition**: 新しい機能や修正の要望をゼロからインタビューし、要件をまとめます。
