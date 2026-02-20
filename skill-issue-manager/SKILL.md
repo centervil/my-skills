@@ -32,14 +32,14 @@ GitHub Issueのライフサイクル全体（作成、開発開始、実装、�
     *   現在のブランチ (`git branch --show-current`) を確認します。
     *   `main` ブランチにいる場合は、必ず Issue 専用の作業ブランチ (例: `issue-[ID]`, `feat/[ID]`) を作成して切り替えてください。**`main` での直接作業は厳禁です。**
 
-2.  **要件の深掘りと粒度評価 (Requirement & Granularity)**:
-    *   `gh issue view [ID]` でIssueの詳細を取得します。
-    *   **粒度評価 (Assessment)**: `README.md` の「Issue 粒度の基準」に照らし、対象 Issue の範囲（Scope）が適切か評価してください。過大である、または複数レイヤーにまたがると判断した場合は、実装開始前にユーザーに分割を提案してください。
-    *   背景、利用シーン、期待される要件、完了定義の4つの観点で不足している情報を特定し、質問を行います。
-    *   全ての情報を統合し、`docs/issues/[ID]/requirements.md` を作成（または更新）します。
+2.  **Issue の読み込みと要件確認 (Requirements Retrieval)**:
+    *   `gh issue view [ID]` でIssueの詳細（Body）を取得します。
+    *   **SSOT 準拠**: 要件は GitHub Issue の Body に記載されているものを正文（SSOT）として扱います。
+    *   **粒度評価 (Assessment)**: `README.md` の「Issue 粒度の基準」に照らし、対象 Issue の範囲（Scope）が適切か評価してください。
+    *   もし GitHub の Body に要件（Background, Goals, Success Criteria 等）が不足している場合は、実装を開始する前に `requirements` コマンドで要件を固めるようユーザーに促してください。`dev` コマンド内での要件定義インタビューは原則として行いません。
 
 3.  **仕様ドキュメント生成と承認 (Phase Gate)**:
-    *   `design.md` および `tasks.md` を作成します。
+    *   GitHub の Body に基づき、`design.md` および `tasks.md` を作成します。
     *   **重要**: `Task` フェーズに進む前に、必ず `tasks.md` の内容をユーザーに提示し、明示的な承認（例：「タスク開始」「Approve」）を得てください。
 
 #### B. タスク実行 (Phase: Task)
