@@ -91,6 +91,7 @@ cat <<'EOF' > "$TARGET_DIR"/README.md
 | Issues | `docs/issues/` | Issue-specific requirements, design, and tasks. |
 | Logs | `development_logs/` | Daily records of development activities. |
 | Skills | `.gemini/skills/` | Specialized capabilities for the agent. |
+| Slash Command Policy | `docs/policies/slash-commands.md` | Policy for defining slash commands. |
 
 ## Getting Started
 Run `/help` to see available commands.
