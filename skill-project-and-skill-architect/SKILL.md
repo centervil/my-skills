@@ -1,62 +1,20 @@
 ---
-name: project-and-skill-architect
+name: skill-project-and-skill-architect
 description: プロジェクトの構成要素（README.md, AGENTS.md）の構築・修正や、新しいSkill（ツール）の設計・開発を行う際に使用する、基盤エンジニアリングスキル。
 ---
 
-# Project and Skill Architect 指針
+# Skill: システム設計・基盤構築 (Architect)
 
-あなたはAIエージェントが自律的に動作するための「プロジェクト基盤」と「具体的な道具（Skill）」を設計・保守するスペシャリストです。
-プロジェクトの普遍的なルール（憲法）、具体的な環境定義（地図）、そして実動作を担う道具（スキル）を適切に作成・修正することを使命とします。
+## 概要
+プロジェクトの基盤構成（README/AGENTS）の設計・更新、および Skill（機能モジュール）の新規設計・開発を担う。
 
-## 1. 主な役割と対象ファイル
+## Instructions
+1. **基盤設計**: `README.md` と `AGENTS.md` の役割分担、およびプロジェクト全体の物理構造を設計する。
+2. **Skill 開発**: 必要な機能を Skill として設計し、テンプレート（`skill-definition.md`）に従って実装する。
+3. **モード定義**: 各 Mode の役割と入出力契約（`00-contract.md`）を策定する。
+4. **テンプレート管理**: `.ops/templates/` 配下の最新テンプレート構造を維持し、全成果物に適用する。
 
-以下の成果物を作成、リファクタリング、または整合性チェックを行う際にこのスキルを呼び出してください。
-
-1. **`AGENTS.md`（憲法/行動規範）**: 
-   - 抽象化された普遍的な行動原理の定義。特定の環境に依存しないポータブルな記述を維持します。
-2. **`README.md`（地図/静的定義）**: 
-   - プロジェクト固有のディレクトリ構造、使用ツール、Source of Truth の定義。
-   - 特に `Operational Protocols` セクションでの「抽象概念と具体的パスの対応表」の維持。
-3. **`SKILL.md` および `scripts/`（道具/実装）**: 
-   - 特定の作業を自動化・効率化するための具体的な手順とプログラム。
-
-## 2. 業務フローと設計指針
-
-### A. プロジェクトのセットアップ（Project Setup）
-新しいプロジェクトに Roocode を導入する際、標準的なディレクトリ構造と設定ファイルを生成します。
-- **Slash Command**: `/setup-project` コマンドを使用して、プロジェクト名と概要をヒアリングした上で実行します。
-- **Core Files**: `README.md`, `AGENTS.md`, `.ops/` の雛形を生成し、プロジェクト固有の情報を反映させます。
-- **Constitutional Principles**: 生成される `AGENTS.md` は、具体的な手順（IDD等）を含まず、自己定義や原則（Identity, Architectural Separation）に特化した「憲法」としての純粋性を維持します。
-- **Script**: `.gemini/skills/skill-project-and-skill-architect/scripts/setup-project.sh` を使用します。
-
-### B. プロジェクト基盤（README / agents）の構築・修正
-プロジェクトの立ち上げや構造変更の際、以下の手順で「地図」と「憲法」を整備します。
-- **抽象化の抽出**: 憲法に具体的なパスが混入していないか確認し、あれば抽象表現に置き換えます。
-- **対応表の整備**: 地図（README）に、憲法で使用される抽象概念と実際の実体（パスやツール）の対応表を正確に記述します。
-- **整合性検証**: AI自身の能力を用いて、憲法の記述が地図によって具現化可能か（パスが存在するか等）を確認します。
-
-### C. 新規Skillの設計・開発（旧 Skill Architect）
-
-新しい自動化ツール（Skill）を作成する際は、以下の原則を遵守します。
-
-- **Context-First**: 可能な限り `scripts/` 内のプログラムに手順を移譲し、AIの思考負荷を減らします。
-
-- **YAML frontmatter**: `SKILL.md` の冒頭に必ず `name` と `description` を含めます。
-
-- **ユーザー合意**: 実装前に必ず設計案を提示し、具体的な意図を確認してください。
-
-
-
-## 3. 使い時（Trigger）
-
-- 「プロジェクトのディレクトリ構成を整理したい」
-
-- 「READMEに使用ツールや運用ルールを追記したい」
-
-- 「新しい自動化スキルを作ってほしい」
-
-- 「AGENTS.md をもっと汎用的にリファクタリングしたい」
-
-- 「プロジェクトの憲法と地図が矛盾していないか確認したい」
-
-
+## Output Contract
+- 新規・更新された Skill (SKILL.md, scripts/, etc.)
+- プロジェクト基盤の定義ファイル (README.md, AGENTS.md, etc.)
+- `interaction_schema.yaml` に準拠したモード定義

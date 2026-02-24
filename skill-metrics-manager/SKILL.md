@@ -3,42 +3,17 @@ name: skill-metrics-manager
 description: プロジェクトのメトリクス収集（監査の実行、新規メトリクスの作成、ステータス分析）を管理するスキル。
 ---
 
-# Skill: Metrics Manager
+# Skill: メトリクス管理 (Metrics Manager)
 
-## Description
-This skill manages the project's metrics collection system. It allows you to run audits (measurements) and create new metric collectors.
-Use this skill when the user asks to:
-- "Check the metrics" or "Run an audit".
-- "Add a new metric" or "Measure something new".
-- "Analyze the project's status".
+## 概要
+プロジェクトの自律性、規約遵守率、作業効率を定量的に計測し、進捗状況を可視化する。
 
-## Usage
+## Instructions
+1. **メトリクス収集**: `.ops/metrics/collectors/` 配下のスクリプトを実行し、データを収集する。
+2. **監査履歴の記録**: 収集結果を `.ops/audit_logs/metrics.json` に統合・記録する。
+3. **ステータス分析**: `metrics.yaml` の閾値と比較し、プロジェクトの健全性を評価する。
+4. **ダッシュボード更新**: `project_state.md` に最新のメトリクス結果を反映する。
 
-### 1. Run Audit (Measurement)
-To collect current metrics and save them to the history:
-```bash
-bash skills/skill-metrics-manager/scripts/run-audit.sh
-```
-
-### 2. Check Quality Gates
-To verify if the current metrics meet the project's quality standards:
-```bash
-python3 skills/skill-metrics-manager/scripts/check-gates.py
-```
-This script will:
-1. Read the latest `.ops/audit_logs/metrics.json`.
-2. Compare values against thresholds in `.ops/policies/metrics.yaml`.
-3. Exit with code 1 if any "critical" gate fails.
-
-### 3. Add New Metric
-To create a new collector script:
-```bash
-skills/skill-metrics-manager/scripts/create-collector.sh [metric_name]
-```
-- `metric_name`: A short, descriptive name (e.g., `check_todos`, `python_coverage`).
-- The script is created in `.ops/metrics/collectors/`.
-- **Action**: After running this command, you MUST edit the generated file to implement the logic.
-
-## Metric Definitions
-- **Core Metrics**: [references/METRICS.md](references/METRICS.md) (Standard metrics like Code Churn).
-- **Project Metrics**: [.ops/metrics/METRICS.md](../../../../.ops/metrics/METRICS.md) (Project-specific definitions like Autonomy).
+## Output Contract
+- 更新された `metrics.json` および `project_state.md`
+- プロジェクトの健全性に関する分析レポート
