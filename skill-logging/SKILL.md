@@ -16,34 +16,42 @@ description: 動作結果と期待値の乖離を JSON および Markdown 形式
     - `result`: 実際の実行結果。
     - `gap`: 期待値と結果の乖離（具体的記述）。
     - `action`: 次回に向けた改善アクション。
+    - `source_mode`: 実行した Mode (pm, code, reviewer 等)。
+    - `protocol_fidelity`: 設計された通信プロトコルを遵守したか (true/false)。
     - `format`: 出力形式 (`markdown` | `json` | `both`)。デフォルトは `both`。
-- **Constraint**: `goal`, `result`, `session_id` が不足している場合、Skill はエラーを返す。
+- **Constraint**: `goal`, `result`, `session_id`, `source_mode` が不足している場合、Skill はエラーを返す。
 
 ## Procedure (Stateless)
-1.  **保存先ディレクトリの確認**: `development_logs/` ディレクトリが存在することを確認する。存在しない場合は作成する。
+1.  **保存先ディレクトリの確認**: 
+    - Markdown: `development_logs/`
+    - JSON: `.ops/audit_logs/sessions/`
+    ディレクトリが存在することを確認し、なければ作成する。
 2.  **Markdown 出力の生成 (format が markdown または both の場合)**:
     - ファイル名: `development_logs/session-[session_id].md`
     - 内容:
         ```markdown
         # Session Audit Log: [session_id]
         - **Date**: [Current Date]
+        - **Mode**: [source_mode]
         - **Goal**: [goal]
         - **Result**: [result]
         - **Expectation Gap**: [gap]
         - **Action for Improvement**: [action]
         ```
 3.  **JSON 出力の生成 (format が json または both の場合)**:
-    - ファイル名: `development_logs/session-[session_id].json`
+    - ファイル名: `.ops/audit_logs/sessions/session-[session_id].json`
     - 内容:
         ```json
         {
           "session_id": "[session_id]",
           "timestamp": "[Current ISO Timestamp]",
+          "source_mode": "[source_mode]",
           "audit": {
             "goal": "[goal]",
             "result": "[result]",
             "expectation_gap": "[gap]",
-            "improvement_action": "[action]"
+            "improvement_action": "[action]",
+            "protocol_fidelity": [protocol_fidelity]
           }
         }
         ```
@@ -52,5 +60,5 @@ description: 動作結果と期待値の乖離を JSON および Markdown 形式
 ## Output Contract
 - **Result**: 指定された形式でのログファイル生成完了。
 - **Artifacts**:
-    - `development_logs/session-[session_id].md` (オプション)
-    - `development_logs/session-[session_id].json` (オプション)
+    - `development_logs/session-[session_id].md` (Human-readable)
+    - `.ops/audit_logs/sessions/session-[session_id].json` (Audit Evidence)

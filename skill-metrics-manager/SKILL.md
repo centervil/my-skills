@@ -10,9 +10,14 @@ description: プロジェクトのメトリクス収集（監査の実行、新�
 
 ## Instructions
 1. **メトリクス収集**: `.ops/metrics/collectors/` 配下のスクリプトを実行し、データを収集する。
-2. **監査履歴の記録**: 収集結果を `.ops/audit_logs/metrics.json` に統合・記録する。
+2. **監査証跡の集計**: `aggregate_metrics.sh` を実行し、`.ops/audit_logs/sessions/` 内のデータを集計して `.ops/audit_logs/metrics.json` を更新する。
 3. **ステータス分析**: `metrics.yaml` の閾値と比較し、プロジェクトの健全性を評価する。
-4. **ダッシュボード更新**: `project_state.md` に最新のメトリクス結果を反映する。
+4. **ダッシュボード更新**: `update_state_metrics.sh` を実行し、`project_state.md` に最新のメトリクス結果を反映する。
+
+## Procedure
+1.  **集計実行**: `bash .gemini/skills/skill-metrics-manager/scripts/aggregate_metrics.sh` を実行する。
+2.  **可視化反映**: `bash .gemini/skills/skill-metrics-manager/scripts/update_state_metrics.sh` を実行する。
+3.  **分析報告**: 更新された `metrics.json` の内容を要約し、ユーザーに報告する。
 
 ## Output Contract
 - 更新された `metrics.json` および `project_state.md`
