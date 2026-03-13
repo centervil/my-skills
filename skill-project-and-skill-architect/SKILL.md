@@ -10,7 +10,10 @@ description: プロジェクトの構成要素（README.md, AGENTS.md）の構�
 
 ## Instructions
 1. **基盤設計**: `README.md` と `AGENTS.md` の役割分担、およびプロジェクト全体の物理構造を設計する。
-2. **Skill 開発**: 必要な機能を Skill として設計し、テンプレート（`skill-definition.md`）に従って実装する。
+2. **Skill 開発**: 必要な機能を Skill として設計し、以下の「自己改善ループ」を組み込んで実装する。
+    - **知見蓄積ファイルの作成**: `references/known_issues.md` を必ず作成し、知見を蓄積可能な状態にする。
+    - **自己改善プロンプトの挿入**: 生成する `SKILL.md` のワークフローの冒頭（Step 1 等）に、必ず `known_issues.md` を読み込んで過去の知見を確認する指示を追加する。
+    - テンプレート（`skill-definition.md`）が存在する場合はそれに従い、存在しない場合は標準的な構造（SKILL.md, scripts/, references/）を採用する。
 3. **モード定義**: 各 Mode の役割と入出力契約（`00-contract.md`）を策定する。
 4. **テンプレート管理**: `.ops/templates/` 配下の最新テンプレート構造を維持し、全成果物に適用する。
 

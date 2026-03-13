@@ -6,24 +6,29 @@ description: Brief description of the skill (one sentence).
 # Skill: [Display Name]
 
 ## Definition / Overview
-Describe what this skill does and its purpose.
-
-## Capabilities
-List specific capabilities of this skill.
-- [Capability 1]
-- [Capability 2]
+このSkillは、[目的] を達成するための専門的なワークフローと知見を提供します。
 
 ## Usage Guidelines (Instructions)
-Procedural instructions for the AI to follow when using this skill.
-1. Step 1
-2. Step 2
+AIはこのSkillを使用する際、以下の手順に厳密に従ってください。
 
-## CLI Usage (Optional)
-If the skill has associated scripts, describe them here.
-```bash
-bash skills/skill-id/scripts/command.sh [args]
-```
+1. **過去の知見の確認**:
+   `.gemini/skills/[skill-name-id]/references/known_issues.md` を `read_file` で読み込み、過去に発生した問題、失敗、または注意点を確認してください。
+
+2. **[手順 1]**:
+   ...
+
+3. **[手順 2]**:
+   ...
+
+## 自己改善ループ
+このSkillの使用中にエラーや想定外の挙動が発生した場合は、必ず原因を分析し、`.gemini/skills/[skill-name-id]/references/known_issues.md` に以下の形式で記録してください。
+
+### [問題の概要]
+- **発生日**: YYYY-MM-DD
+- **症状**: 何が起きたか
+- **原因**: なぜ起きたか
+- **対策**: どう解決したか / 今後どう防ぐか
 
 ## Resources
-- **Project State**: `.ops/project_state.md` (example)
-- **Other**: ...
+- **知見蓄積ファイル**: `.gemini/skills/[skill-name-id]/references/known_issues.md`
+- **その他**: ...
