@@ -1,5 +1,5 @@
 ---
-name: skill-orchestration
+name: skill-orchestration-roo
 description: AIエージェント（Mode）間の通信プロトコル（Orchestration Protocol）を定義・検証・管理するためのスキル。
 ---
 

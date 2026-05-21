@@ -1,9 +1,9 @@
 ---
-name: skill-self-optimizer
+name: skill-self-optimizer-roo
 description: 各Modeの動作ログを蓄積し、Roocode自体の設定を自己改善するための提案を行う。
 ---
 
-# Skill: Self-Optimizer
+# Skill: Self-Optimizer-Roo
 
 ## Overview
 このスキルは、エージェントの「自己進化」を支える基盤です。動作中の重要な判断や結果を構造化データとして記録し、それらを分析して `.roo/` 配下の設定ファイルに対する改善案（diff）を生成します。
@@ -32,7 +32,7 @@ description: 各Modeの動作ログを蓄積し、Roocode自体の設定を自�
 ```
 
 ### 2. Analyze & Propose (改善提案)
-`/self-optimize` コマンドが実行された際、以下の手順で処理を行います。
+`/self-optimize-roo` コマンドが実行された際、以下の手順で処理を行います。
 1. 指定された（または推論された）ログファイルをロードします。
 2. ログ内の `improvement_hint` や失敗パターンを分析します。
 3. 関連する `.roo/rules-*.md` または `SKILL.md` の内容と比較します。
