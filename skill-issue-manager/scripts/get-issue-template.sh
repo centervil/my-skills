@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # skills/skill-issue-manager/scripts/get-issue-template.sh
 
 TEMPLATE_DIR=".github/ISSUE_TEMPLATE"

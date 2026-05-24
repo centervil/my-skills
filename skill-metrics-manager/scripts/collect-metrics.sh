@@ -1,4 +1,14 @@
 #!/bin/bash
+set -euo pipefail
+
+# Logging functions
+log() {
+    local level="$1"
+    shift
+    echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] [$level] $*"
+}
+log_info() { log "INFO" "$*"; }
+log_error() { log "ERROR" "$*" >&2; }
 
 # Metrics Collection Script for Gemini CLI
 # Orchestrator Refactored for Issue #10
@@ -19,7 +29,7 @@ run_collectors() {
         if [ "$count" != "0" ]; then
             for script in "$DIR"/*.sh; do
                 if [ -x "$script" ]; then
-                    echo "Running collector: $script" >&2
+                    log_info "Running collector: $script"
                     RESULT=$("$script")
                     if [ -z "$RESULT" ]; then RESULT="{}"; fi
                     # Merge result
@@ -30,7 +40,7 @@ run_collectors() {
     fi
 }
 
-echo "Collecting metrics..."
+log_info "Collecting metrics..."
 
 # Core Collectors
 run_collectors "$(dirname "$0")/collectors"
@@ -42,4 +52,4 @@ run_collectors ".ops/metrics/collectors"
 FINAL_JSON=$(jq -n --arg time "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --argjson metrics "$COLLECTED_JSON" '{timestamp: $time, metrics: $metrics}')
 
 echo "$FINAL_JSON" > "$OUTPUT_FILE"
-echo "Metrics saved to $OUTPUT_FILE"
+log_info "Metrics saved to $OUTPUT_FILE"

@@ -1,4 +1,14 @@
 #!/bin/bash
+set -euo pipefail
+
+# Logging functions
+log() {
+    local level="$1"
+    shift
+    echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] [$level] $*"
+}
+log_info() { log "INFO" "$*"; }
+log_error() { log "ERROR" "$*" >&2; }
 
 # Aggregate all metrics into .ops/audit_logs/metrics.json
 # Path: .gemini/skills/skill-metrics-manager/scripts/aggregate_metrics.sh
@@ -29,4 +39,4 @@ with open('$METRICS_FILE', 'w') as f:
     json.dump(result, f, indent=2)
 EOF
 
-echo "Metrics aggregated to $METRICS_FILE"
+log_info "Metrics aggregated to $METRICS_FILE"

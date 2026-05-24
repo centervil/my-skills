@@ -1,4 +1,14 @@
 #!/bin/bash
+set -euo pipefail
+
+# Logging functions
+log() {
+    local level="$1"
+    shift
+    echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] [$level] $*"
+}
+log_info() { log "INFO" "$*"; }
+log_error() { log "ERROR" "$*" >&2; }
 
 # [Title] Metrics Collector
 # Description: [Description of what this collector measures]

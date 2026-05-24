@@ -1,4 +1,14 @@
 #!/bin/bash
+set -euo pipefail
+
+# Logging functions
+log() {
+    local level="$1"
+    shift
+    echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] [$level] $*"
+}
+log_info() { log "INFO" "$*"; }
+log_error() { log "ERROR" "$*" >&2; }
 
 if [ -f "package.json" ] && grep -q "\"test\":" "package.json"; then
   npm test > /dev/null 2>&1

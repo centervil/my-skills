@@ -1,14 +1,24 @@
 #!/bin/bash
+set -euo pipefail
+
+# Logging functions
+log() {
+    local level="$1"
+    shift
+    echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] [$level] $*"
+}
+log_info() { log "INFO" "$*"; }
+log_error() { log "ERROR" "$*" >&2; }
 
 # 1. Run the core metrics collection
-echo "Running metrics collection..."
+log_info "Running metrics collection..."
 "$(dirname "$0")/collect-metrics.sh"
 
 METRICS_FILE=".ops/audit_logs/metrics.json"
 HISTORY_DIR=".ops/audit_logs/history"
 
 if [ ! -f "$METRICS_FILE" ]; then
-  echo "Error: Metrics file was not generated."
+  log_error "Metrics file was not generated."
   exit 1
 fi
 
@@ -19,7 +29,7 @@ HISTORY_FILE="$HISTORY_DIR/metrics_$TIMESTAMP.json"
 
 cp "$METRICS_FILE" "$HISTORY_FILE"
 
-echo "Metrics archived to: $HISTORY_FILE"
+log_info "Metrics archived to: $HISTORY_FILE"
 
 # 3. Check Quality Gates if --check is provided
 if [[ "$*" == *"--check"* ]]; then
@@ -31,12 +41,12 @@ fi
 
 # 4. Display summary (requires jq)
 if command -v jq >/dev/null 2>&1; then
-  echo ""
-  echo "--- Current Status ---"
+  log_info ""
+  log_info "--- Current Status ---"
   jq .metrics "$METRICS_FILE"
 else
-  echo ""
-  echo "Tip: Install 'jq' for better visualization."
+  log_info ""
+  log_info "Tip: Install 'jq' for better visualization."
 fi
 
 exit $GATE_EXIT_CODE

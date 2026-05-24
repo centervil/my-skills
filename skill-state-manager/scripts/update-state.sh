@@ -1,4 +1,14 @@
 #!/bin/bash
+set -euo pipefail
+
+# Logging functions
+log() {
+    local level="$1"
+    shift
+    echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] [$level] $*"
+}
+log_info() { log "INFO" "$*"; }
+log_error() { log "ERROR" "$*" >&2; }
 
 # Enhanced State Management Script
 # Usage: ./update-state.sh <ISSUE_ID> [STATUS] [TASK_ID]
@@ -8,7 +18,7 @@ STATUS=$2
 TASK_ID=$3
 
 if [ -z "$ISSUE_ID" ]; then
-  echo "Usage: $0 <ISSUE_ID> [STATUS] [TASK_ID]"
+  log_error "Usage: $0 <ISSUE_ID> [STATUS] [TASK_ID]"
   exit 1
 fi
 
@@ -25,7 +35,7 @@ if [ -z "$ISSUE_TITLE" ]; then
   fi
 fi
 
-echo "Processing Issue #$ISSUE_ID: $ISSUE_TITLE"
+log_info "Processing Issue #$ISSUE_ID: $ISSUE_TITLE"
 
 # 2. Update project_state.md (Roadmap)
 if [ -n "$ISSUE_TITLE" ] && [ -f "$PROJECT_STATE" ]; then
@@ -34,7 +44,7 @@ if [ -n "$ISSUE_TITLE" ] && [ -f "$PROJECT_STATE" ]; then
     ESCAPED_TITLE=$(echo "$ISSUE_TITLE" | sed 's/[/.*[\]&]/\\&/g')
     # Update checkbox to [x]
     sed -i "s/\[ \] $ESCAPED_TITLE/\[x\] $ESCAPED_TITLE/g" "$PROJECT_STATE"
-    echo "Marked '$ISSUE_TITLE' as completed in $PROJECT_STATE"
+    log_info "Marked '$ISSUE_TITLE' as completed in $PROJECT_STATE"
   elif [ "$STATUS" == "in_progress" ]; then
     # Add "(In Progress)" if not already there, but don't check it yet
     # This is optional and depends on project style
@@ -49,11 +59,11 @@ if [ -f "$TASKS_FILE" ]; then
   if [ -n "$TASK_ID" ]; then
     # Update specific task by ID marker <!-- id: TASK_ID -->
     sed -i "s/\[ \] \(.*\)<!-- id: $TASK_ID -->/\[x\] \1<!-- id: $TASK_ID -->/g" "$TASKS_FILE"
-    echo "Marked task ID $TASK_ID as completed in $TASKS_FILE"
+    log_info "Marked task ID $TASK_ID as completed in $TASKS_FILE"
   elif [ "$STATUS" == "completed" ]; then
     # Mark all tasks as completed
     sed -i "s/\[ \]/\[x\]/g" "$TASKS_FILE"
-    echo "Marked all tasks in $TASKS_FILE as completed"
+    log_info "Marked all tasks in $TASKS_FILE as completed"
   fi
 fi
 
@@ -61,5 +71,5 @@ fi
 if [ "$STATUS" == "in_progress" ] && [ -f "$PROJECT_STATE" ]; then
   # This is a bit more complex, might need to replace a whole block
   # For now, let's just log it.
-  echo "Issue #$ISSUE_ID is now the focus."
+  log_info "Issue #$ISSUE_ID is now the focus."
 fi

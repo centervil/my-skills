@@ -1,4 +1,14 @@
 #!/bin/bash
+set -euo pipefail
+
+# Logging functions
+log() {
+    local level="$1"
+    shift
+    echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] [$level] $*"
+}
+log_info() { log "INFO" "$*"; }
+log_error() { log "ERROR" "$*" >&2; }
 
 # Update project_state.md with latest metrics from metrics.json
 # Path: .gemini/skills/skill-metrics-manager/scripts/update_state_metrics.sh
@@ -7,7 +17,7 @@ METRICS_FILE=".ops/audit_logs/metrics.json"
 STATE_FILE=".ops/project_state.md"
 
 if [ ! -f "$METRICS_FILE" ]; then
-    echo "Metrics file not found."
+    log_error "Metrics file not found."
     exit 1
 fi
 
@@ -61,4 +71,4 @@ with open('$STATE_FILE', 'w') as f:
     f.write(new_content)
 EOF
 
-echo "project_state.md updated with latest metrics."
+log_info "project_state.md updated with latest metrics."
