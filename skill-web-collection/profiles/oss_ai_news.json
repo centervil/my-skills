@@ -1,0 +1,13 @@
+{
+  "theme": "Open Source AI and LLM Framework Releases",
+  "sources": [
+    "GitHub trending, Hugging Face blog, Hacker News"
+  ],
+  "constraints": {
+    "max_items": 3,
+    "time_window": "target_date"
+  },
+  "model": "gemini-3.8-flash-low",
+  "effort": "low",
+  "template_path": "/home/devuser/workspace/my-skills/skill-web-collection/profiles/sample_template.md"
+}

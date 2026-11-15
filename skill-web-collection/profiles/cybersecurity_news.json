@@ -1,0 +1,13 @@
+{
+  "theme": "Cybersecurity News",
+  "sources": [
+    "Major cybersecurity news outlets (BleepingComputer, The Hacker News, CISA advisories, Krebs on Security)"
+  ],
+  "constraints": {
+    "max_items": 3,
+    "time_window": "target_date"
+  },
+  "model": "gemini-3.8-flash-low",
+  "effort": "low",
+  "template_path": "/home/devuser/workspace/my-docs/templates/cybersecurity_news_template.md"
+}
