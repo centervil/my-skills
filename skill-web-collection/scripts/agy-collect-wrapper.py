@@ -50,11 +50,8 @@ def run_agy_session(prompt, model, effort, timeout_sec=600):
             return err_type, res.stderr or res.stdout, {}
         
         # Parse output format json from agy
-        # agy --output-format json outputs JSON containing response and usage info
         try:
             data = json.loads(res.stdout)
-            # Depending on agy json output structure:
-            # Let's inspect what agy outputs with --output-format json
             content = data.get("response", data.get("content", res.stdout))
             usage = data.get("usage", {})
             return "OK", content, usage
@@ -66,6 +63,13 @@ def run_agy_session(prompt, model, effort, timeout_sec=600):
         return "RATE_LIMITED", "Agy session timed out.", {}
     except Exception as e:
         return "FAILED", str(e), {}
+
+def resolve_template_path(template_path, profile_path):
+    """Resolve template_path relative to profile directory if it's a relative path."""
+    if os.path.isabs(template_path):
+        return os.path.normpath(template_path)
+    profile_dir = os.path.dirname(os.path.abspath(profile_path))
+    return os.path.normpath(os.path.join(profile_dir, template_path))
 
 def main():
     parser = argparse.ArgumentParser(description="Antigravity CLI Generic Web Collection Wrapper")
@@ -101,13 +105,55 @@ def main():
     theme = profile.get("theme", "")
     sources = profile.get("sources", [])
     constraints = profile.get("constraints", {})
-    max_items = constraints.get("max_items", 5)
+    
+    # max_items strictly required check
+    if "max_items" not in constraints or constraints["max_items"] is None:
+        err_msg = "Error: constraints.max_items is strictly required in profile JSON."
+        meta = {
+            "status": "FAILED",
+            "target_date": args.target_date,
+            "profile": os.path.basename(args.profile),
+            "error_message": err_msg,
+            "timestamp": datetime.now().isoformat()
+        }
+        with open(args.metadata_output, "w", encoding="utf-8") as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
+        print(err_msg, file=sys.stderr)
+        sys.exit(1)
+
+    max_items = constraints["max_items"]
     model = profile.get("model", "gemini-3.8-flash-low")
     effort = profile.get("effort", "low")
-    template_path = profile.get("template_path", "")
+    raw_template_path = profile.get("template_path", "")
 
-    if not template_path or not os.path.exists(template_path):
-        print(f"Error: Template path not found: {template_path}", file=sys.stderr)
+    if not raw_template_path:
+        err_msg = "Error: template_path is not specified in profile JSON."
+        meta = {
+            "status": "FAILED",
+            "target_date": args.target_date,
+            "profile": os.path.basename(args.profile),
+            "error_message": err_msg,
+            "timestamp": datetime.now().isoformat()
+        }
+        with open(args.metadata_output, "w", encoding="utf-8") as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
+        print(err_msg, file=sys.stderr)
+        sys.exit(1)
+
+    template_path = resolve_template_path(raw_template_path, args.profile)
+
+    if not os.path.exists(template_path):
+        err_msg = f"Error: Resolved template path not found: {template_path} (from raw path: {raw_template_path})"
+        meta = {
+            "status": "FAILED",
+            "target_date": args.target_date,
+            "profile": os.path.basename(args.profile),
+            "error_message": err_msg,
+            "timestamp": datetime.now().isoformat()
+        }
+        with open(args.metadata_output, "w", encoding="utf-8") as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
+        print(err_msg, file=sys.stderr)
         sys.exit(1)
 
     with open(template_path, "r", encoding="utf-8") as f:

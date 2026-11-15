@@ -9,5 +9,5 @@
   },
   "model": "gemini-3.8-flash-low",
   "effort": "low",
-  "template_path": "/home/devuser/workspace/my-docs/templates/cybersecurity_news_template.md"
+  "template_path": "../../../my-docs/templates/cybersecurity_news_template.md"
 }

@@ -9,5 +9,5 @@
   },
   "model": "gemini-3.8-flash-low",
   "effort": "low",
-  "template_path": "/home/devuser/workspace/my-skills/skill-web-collection/profiles/sample_template.md"
+  "template_path": "sample_template.md"
 }

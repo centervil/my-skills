@@ -1,25 +1,45 @@
-{
-  "status": "OK",
-  "target_date": "2026-11-14",
-  "profile": "cybersecurity_news.json",
-  "model": "gemini-3.8-flash-low",
-  "effort": "low",
-  "output_file": "skill-web-collection/profiles/sample_template.md",
-  "usage": {
-    "collection": {
-      "input_tokens": 14003,
-      "output_tokens": 770,
-      "thinking_tokens": 0,
-      "cache_read_tokens": 11891,
-      "total_tokens": 14773
-    },
-    "generation": {
-      "input_tokens": 13049,
-      "output_tokens": 2034,
-      "thinking_tokens": 0,
-      "cache_read_tokens": 0,
-      "total_tokens": 15083
-    }
-  },
-  "timestamp": "2026-11-15T15:15:36.938105"
-}
+# 汎用 Markdown テンプレート
+
+任意のテーマと収集データに基づいて構造化記事を生成するための汎用サンプルテンプレートです。
+
+---
+
+# [テーマ名] レポート: [日付]
+
+## 1. 主要なポイント (Executive Summary)
+- **ポイント 1**: [主要なポイント1]
+- **ポイント 2**: [主要なポイント2]
+- **ポイント 3**: [主要なポイント3]
+
+---
+
+## 2. カテゴリ別要約
+### 2.1 [カテゴリ1]
+- [要約事項 1-1]
+- [要約事項 1-2]
+
+### 2.2 [カテゴリ2]
+- [要約事項 2-1]
+- [要約事項 2-2]
+
+---
+
+## 3. 詳細分析
+- **トレンド・背景**: [背景や市場・技術的動向に関する詳細な解説]
+- **影響・評価**: [エコシステムやユーザーへの影響評価]
+
+---
+
+## 4. 深掘りセクション
+- [技術的詳細や特記事項の考察]
+
+---
+
+## 5. 結論と展望
+- [まとめと今後の注目点]
+
+---
+
+## 6. 主な出典・参考リンク
+1. [出典: 出典名 - タイトル](URL)
+2. [出典: 出典名 - タイトル](URL)
