@@ -255,7 +255,7 @@ def fetch_article_body(url, timeout=10, browser_fallback=False):
                     text = text_full
                     length = len(text)
 
-            return text[:2000], f"OK_{status_code}", status_code, "http", length
+            return text[:2000], "OK", status_code, "http", length
     except urllib.error.HTTPError as e:
         status_code = e.code
         # Stage 2: Browser fallback on HTTP 403 if enabled
@@ -270,9 +270,9 @@ def fetch_article_body(url, timeout=10, browser_fallback=False):
         elif status_code == 403:
             return "", "HTTP_403", 403, "snippet_fallback", 0
         else:
-            return "", f"HTTP_ERROR_{status_code}", status_code, "snippet_fallback", 0
+            return "", "HTTP_ERROR", status_code, "snippet_fallback", 0
     except Exception as e:
-        return "", f"ERROR_{type(e).__name__}", 0, "snippet_fallback", 0
+        return "", "HTTP_ERROR", 0, "snippet_fallback", 0
 
 def fetch_via_playwright(url, timeout=15):
     """Fetch article body using Playwright if available."""
@@ -450,16 +450,100 @@ Return ONLY valid JSON array containing the candidates, without any extra markdo
         except Exception:
             candidates = []
 
+    candidates_total_count = len(candidates)
+
     # Step 2: Mechanical Dedup
     corpus_index = extract_corpus_index(reports_dir, args.target_date, dedup_days)
     kept_after_mech, mech_excluded, affinity_candidates = mechanical_dedup(candidates, corpus_index)
 
-    # Step 3: Boundary Judgment (Batch via agy if needed, or apply default)
-    # Target: ONLY candidates that have affinity with corpus. Non-affinity candidates pass through directly.
-    final_kept = list(kept_after_mech) # non-affinity kept items
+    # Step 3: Fetchability Check on dedup survivors (Stage 1 / Stage 2)
+    fetchable_min_chars = profile.get("fetchable_min_chars", 600)
+    browser_fallback_enabled = profile.get("browser_fallback", False)
+
+    def evaluate_candidates_fetchability(cand_list):
+        evaluated = []
+        for cand in cand_list:
+            url = cand.get("url", "")
+            fetched, source_status, status_code, body_source, length = fetch_article_body(url, browser_fallback=browser_fallback_enabled)
+            is_fetchable = (200 <= status_code < 300) and (length >= fetchable_min_chars)
+            
+            cand_copy = dict(cand)
+            cand_copy["fetchable"] = is_fetchable
+            cand_copy["fetch_reason"] = source_status
+            cand_copy["fetch_status"] = status_code
+            cand_copy["body_length"] = length
+            if is_fetchable:
+                cand_copy["fetched_body"] = fetched[:2000]
+                cand_copy["body_source"] = body_source
+                cand_copy["snippet_only"] = False
+            else:
+                cand_copy["fetched_body"] = cand.get("snippet", "")
+                cand_copy["body_source"] = "snippet_fallback"
+                cand_copy["snippet_only"] = True
+            evaluated.append(cand_copy)
+        return evaluated
+
+    evaluated_kept_after_mech = evaluate_candidates_fetchability(kept_after_mech)
+    evaluated_affinity = evaluate_candidates_fetchability(affinity_candidates)
+
+    fetchable_survivors = [c for c in evaluated_kept_after_mech if c.get("fetchable")] + [c for c in evaluated_affinity if c.get("fetchable")]
+    all_dedup_survivors = evaluated_kept_after_mech + evaluated_affinity
+
+    recollection_triggered = False
+    recollection_reason = ""
+    recollection_usage = {}
+
+    # Step 4: Re-collection (Trigger: fetchable count < max_items or dedup survivors count < max_items, max 1 time)
+    if len(fetchable_survivors) < max_items or len(all_dedup_survivors) < max_items:
+        if len(fetchable_survivors) < max_items:
+            recollection_reason = f"fetchable_shortage: {len(fetchable_survivors)}/{max_items}"
+        else:
+            recollection_reason = f"dedup_survivors_shortage: {len(all_dedup_survivors)}/{max_items}"
+
+        excluded_urls = [c.get("url") for c in candidates]
+        recollection_prompt = f"""
+You are an expert web research agent.
+Target Date: {args.target_date}
+Theme: {theme}
+We need additional items because previous candidates were deduplicated or failed fetchable check.
+Excluded URLs to avoid: {json.dumps(excluded_urls)}
+Please gather {max_items * 2} NEW unique items for the target date using alternative queries/sources.
+Output strictly as a JSON array of objects with keys: "title", "url", "published_date", "source_name", "snippet".
+"""
+        print(f"Running Re-collection Session with model {model}...")
+        session_count += 1
+        rc_status, rc_content, rc_usage = run_agy_session(recollection_prompt, model, effort)
+        recollection_triggered = True
+        usage_stats["recollection"] = rc_usage
+
+        if rc_status == "OK":
+            try:
+                rc_clean = rc_content.strip()
+                if rc_clean.startswith("```"):
+                    rc_clean = re.sub(r'^```(?:json)?\s*', '', rc_clean)
+                    rc_clean = re.sub(r'\s*```$', '', rc_clean)
+                new_items = json.loads(rc_clean)
+                if isinstance(new_items, list):
+                    candidates_total_count += len(new_items)
+                    # Apply mechanical dedup and fetchability to new items
+                    new_kept, new_mech_exc, new_affinity = mechanical_dedup(new_items, corpus_index)
+                    mech_excluded.extend(new_mech_exc)
+                    evaluated_new_kept = evaluate_candidates_fetchability(new_kept)
+                    evaluated_new_affinity = evaluate_candidates_fetchability(new_affinity)
+                    
+                    evaluated_kept_after_mech.extend(evaluated_new_kept)
+                    evaluated_affinity.extend(evaluated_new_affinity)
+                    all_dedup_survivors = evaluated_kept_after_mech + evaluated_affinity
+            except Exception:
+                pass
+    else:
+        recollection_reason = f"not_triggered: sufficient fetchable ({len(fetchable_survivors)}) and survivors ({len(all_dedup_survivors)}) >= {max_items}"
+
+    # Step 5: Boundary Judgment (1 time on final pool of affinity candidates)
+    final_kept = [c for c in evaluated_kept_after_mech if c.get("fetchable")] + [c for c in evaluated_kept_after_mech if not c.get("fetchable")] # non-affinity kept items
     boundary_records = []
     
-    boundary_candidates = affinity_candidates
+    boundary_candidates = evaluated_affinity
     if boundary_candidates and reports_dir:
         boundary_prompt = f"""
 You are an expert fact-checker.
@@ -499,126 +583,40 @@ Return ONLY valid JSON array.
                                 final_kept.append(cand)
                                 boundary_records.append({"candidate": cand, "judgment": "KEEP_BOUNDARY_DEFAULT", "reason": "Default keep"})
                         else:
-                            # If model didn't return explicit judgment for this index, keep candidate or apply default
                             final_kept.append(cand)
                             boundary_records.append({"candidate": cand, "judgment": "KEEP_UNJUDGED", "reason": "Not explicitly dropped by model, kept"})
             except Exception:
-                # If JSON parse error or failure: keep mechanical dedup results (do not drop all)
                 for cand in boundary_candidates:
                     final_kept.append(cand)
                     boundary_records.append({"candidate": cand, "judgment": "KEEP_BOUNDARY_ERROR_SKIPPED", "reason": "JSON parse error, boundary check skipped and kept by safety default"})
-                # Record error status in metadata or logs if needed
                 usage_stats["boundary_judgment_error"] = "JSON parse error"
         else:
-            # If session failed / error: keep mechanical dedup results (do not drop all)
             for cand in boundary_candidates:
                 final_kept.append(cand)
                 boundary_records.append({"candidate": cand, "judgment": "KEEP_BOUNDARY_FAIL_SKIPPED", "reason": f"Session failed ({b_status}), boundary check skipped and kept by safety default"})
             usage_stats["boundary_judgment_error"] = f"Session failed: {b_status}"
     else:
-        # No boundary candidates, just add affinity candidates to final kept
         for cand in boundary_candidates:
             final_kept.append(cand)
 
-    recollection_triggered = False
-    recollection_usage = {}
+    # Step 6: Selection (Fetchable items first, then snippet fallback items up to max_items)
+    fetchable_pool = [c for c in final_kept if c.get("fetchable")]
+    snippet_pool = [c for c in final_kept if not c.get("fetchable")]
 
-    # Step 6: Insufficient Check & Re-collection (Max 1 time)
-    if len(final_kept) < max_items:
-        excluded_urls = [c.get("candidate", {}).get("url") for c in mech_excluded] + [c.get("candidate", {}).get("url") for c in boundary_records if "DROP" in c.get("judgment", "")]
-        recollection_prompt = f"""
-You are an expert web research agent.
-Target Date: {args.target_date}
-Theme: {theme}
-We need additional items because previous candidates were deduplicated.
-Excluded URLs to avoid: {json.dumps(excluded_urls)}
-Please gather {max_items - len(final_kept)} NEW unique items for the target date using alternative queries/sources.
-Output strictly as a JSON array of objects with keys: "title", "url", "published_date", "source_name", "snippet".
-"""
-        print(f"Running Re-collection Session with model {model}...")
-        session_count += 1
-        rc_status, rc_content, rc_usage = run_agy_session(recollection_prompt, model, effort)
-        recollection_triggered = True
-        usage_stats["recollection"] = rc_usage
-
-        if rc_status == "OK":
-            try:
-                rc_clean = rc_content.strip()
-                if rc_clean.startswith("```"):
-                    rc_clean = re.sub(r'^```(?:json)?\s*', '', rc_clean)
-                    rc_clean = re.sub(r'\s*```$', '', rc_clean)
-                new_items = json.loads(rc_clean)
-                if isinstance(new_items, list):
-                    for ni in new_items:
-                        if len(final_kept) < max_items and ni.get("url") not in excluded_urls:
-                            final_kept.append(ni)
-            except Exception:
-                pass
-
-    # Step 3b: Select down to max_items if we have more than max_items
-    if len(final_kept) > max_items:
-        # Keep collection order / newest priority
-        final_kept = final_kept[:max_items]
-
-    insufficient_flag = len(final_kept) < max_items
-    if insufficient_flag and insufficient_fallback != "reduce":
-        # Handle other fallback policies if required
-        pass
-
-    # Step 4: Fetch Article Bodies (Python side) with body_source, fetchable check and diagnosis
-    fetchable_min_chars = profile.get("fetchable_min_chars", 600)
-    browser_fallback_enabled = profile.get("browser_fallback", False)
-
-    enriched_candidates = []
-    fetchable_count = 0
-
-    for cand in final_kept:
-        url = cand.get("url", "")
-        fetched, source_status, status_code, body_source, length = fetch_article_body(url, browser_fallback=browser_fallback_enabled)
-        
-        is_fetchable = (200 <= status_code < 300) and (length >= fetchable_min_chars)
-        if is_fetchable:
-            fetchable_count += 1
-            source_type = "fetched" if body_source == "http" else "browser"
-        else:
-            source_type = "snippet_fallback"
-
-        cand_copy = dict(cand)
-        cand_copy["fetchable"] = is_fetchable
-        cand_copy["fetch_reason"] = source_status
-        cand_copy["fetch_status"] = status_code
-        cand_copy["body_length"] = length
-
-        if is_fetchable:
-            cand_copy["fetched_body"] = fetched[:2000]
-            cand_copy["body_source"] = body_source
-            cand_copy["snippet_only"] = False
-        else:
-            cand_copy["fetched_body"] = cand.get("snippet", "")
-            cand_copy["body_source"] = "snippet_fallback"
-            cand_copy["snippet_only"] = True
-
-        enriched_candidates.append(cand_copy)
-
-    # Re-sort or prioritize fetchable items if needed, or ensure max_items selection
-    # Per spec: Select fetchable candidates first up to max_items, fallback to snippet items if needed
-    fetchable_items = [c for c in enriched_candidates if c.get("fetchable")]
-    snippet_items = [c for c in enriched_candidates if not c.get("fetchable")]
-
-    final_selected = (fetchable_items + snippet_items)[:max_items]
-
-    # Recount fetchable count in final selected items
+    final_selected = (fetchable_pool + snippet_pool)[:max_items]
     final_fetchable_count = sum(1 for c in final_selected if c.get("fetchable"))
-    insufficient_flag = final_fetchable_count < max_items
 
-    # Step 5: Article Generation based on fetched bodies
+    insufficient_flag = final_fetchable_count < max_items
+    insufficient_reason = f"fetchable_shortage: {final_fetchable_count}/{max_items}" if insufficient_flag else "none"
+
+    # Step 7: Article Generation based on selected candidates
     generation_prompt = f"""
 You are an expert technical writer and editor.
 Target Date: {args.target_date}
 Theme: {theme}
 
 Here are the verified article bodies and data to base the report on:
-{json.dumps(enriched_candidates, ensure_ascii=False)}
+{json.dumps(final_selected, ensure_ascii=False)}
 
 Here is the output markdown template that you MUST strictly follow:
 --- TEMPLATE START ---
@@ -656,9 +654,8 @@ Instructions:
         f.write(s2_content)
 
     # Save metadata JSON with extended audit records and summary statistics
-    total_candidates = len(enriched_candidates)
-    fetchable_candidates_count = sum(1 for c in enriched_candidates if c.get("fetchable"))
-    fetchable_rate = (fetchable_candidates_count / total_candidates) if total_candidates > 0 else 0.0
+    dedup_survivors_count = len(all_dedup_survivors)
+    fetchable_rate_val = (len(fetchable_survivors) / dedup_survivors_count) if dedup_survivors_count > 0 else 0.0
 
     meta = {
         "status": "OK",
@@ -669,10 +666,15 @@ Instructions:
         "output_file": args.output,
         "session_count": session_count,
         "insufficient": insufficient_flag,
-        "candidates_total": total_candidates,
-        "fetchable_count": fetchable_candidates_count,
-        "fetchable_rate": round(fetchable_rate * 100, 2),
+        "insufficient_reason": insufficient_reason,
+        "candidates_total": candidates_total_count,
+        "dedup_survivors_count": dedup_survivors_count,
+        "fetchable_count": len(fetchable_survivors),
+        "fetchable_rate": f"{len(fetchable_survivors)}/{dedup_survivors_count} ({round(fetchable_rate_val * 100, 2)}%)",
+        "fetchable_rate_numerator": len(fetchable_survivors),
+        "fetchable_rate_denominator": dedup_survivors_count,
         "recollection_triggered": recollection_triggered,
+        "recollection_reason": recollection_reason,
         "final_composition": {
             "fetchable_count": final_fetchable_count,
             "snippet_fallback_count": len(final_selected) - final_fetchable_count,
