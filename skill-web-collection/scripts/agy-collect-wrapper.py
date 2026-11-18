@@ -212,10 +212,15 @@ def mechanical_dedup(candidates, corpus_index):
 
     return kept, excluded, affinity_candidates
 
-def fetch_article_body(url, timeout=10):
-    """Fetch article body via HTTP GET, diagnose status and extraction, fallback to snippet if fails."""
+def fetch_article_body(url, timeout=10, browser_fallback=False):
+    """Fetch article body via HTTP GET (Stage 1), diagnose status and extraction.
+    If HTTP 403 and browser_fallback is True, try Playwright (Stage 2).
+    Returns: (text, fetch_reason, status_code, body_source, length)
+    """
     if not url or not url.startswith("http"):
-        return "", "INVALID_URL", 0
+        return "", "INVALID_URL", 0, "snippet_fallback", 0
+
+    # Stage 1: HTTP GET
     try:
         req = urllib.request.Request(
             url,
@@ -225,7 +230,7 @@ def fetch_article_body(url, timeout=10):
             status_code = response.getcode()
             html = response.read().decode("utf-8", errors="ignore")
             
-            # Better extraction for article content (try article tag, main tag, or body text)
+            # Better extraction for article content
             article_match = re.search(r'<article[^>]*>(.*?)</article>', html, flags=re.DOTALL | re.IGNORECASE)
             main_match = re.search(r'<main[^>]*>(.*?)</main>', html, flags=re.DOTALL | re.IGNORECASE)
             
@@ -235,16 +240,13 @@ def fetch_article_body(url, timeout=10):
             elif main_match:
                 raw_target = main_match.group(1)
 
-            # Simple HTML tags removal & cleanup
             text = re.sub(r'<script[^>]*>.*?</script>', '', raw_target, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r'<[^>]+>', ' ', text)
-            # Remove excessive whitespace / boilerplate fragments if any
             text = re.sub(r'\s+', ' ', text).strip()
             
             length = len(text)
-            if length < 100: # if extracted text is too short (e.g. just nav or boilerplate), fallback or use full html body
-                # Try full html body parse
+            if length < 100:
                 text_full = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
                 text_full = re.sub(r'<style[^>]*>.*?</style>', '', text_full, flags=re.DOTALL | re.IGNORECASE)
                 text_full = re.sub(r'<[^>]+>', ' ', text_full)
@@ -253,9 +255,45 @@ def fetch_article_body(url, timeout=10):
                     text = text_full
                     length = len(text)
 
-            return text[:2000], f"HTTP_{status_code}", length
+            return text[:2000], f"OK_{status_code}", status_code, "http", length
+    except urllib.error.HTTPError as e:
+        status_code = e.code
+        # Stage 2: Browser fallback on HTTP 403 if enabled
+        if status_code == 403 and browser_fallback:
+            pw_text, pw_status = fetch_via_playwright(url, timeout=timeout)
+            if pw_text and len(pw_text) >= 100:
+                return pw_text[:2000], "BROWSER_OK", 200, "browser", len(pw_text)
+            else:
+                return "", "BROWSER_FAIL", 403, "snippet_fallback", 0
+        elif status_code == 404:
+            return "", "HTTP_404", 404, "snippet_fallback", 0
+        elif status_code == 403:
+            return "", "HTTP_403", 403, "snippet_fallback", 0
+        else:
+            return "", f"HTTP_ERROR_{status_code}", status_code, "snippet_fallback", 0
     except Exception as e:
-        return "", f"ERROR_{type(e).__name__}", 0
+        return "", f"ERROR_{type(e).__name__}", 0, "snippet_fallback", 0
+
+def fetch_via_playwright(url, timeout=15):
+    """Fetch article body using Playwright if available."""
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.set_extra_http_headers({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
+            page.goto(url, timeout=timeout * 1000, wait_until="domcontentloaded")
+            html = page.content()
+            browser.close()
+            
+            # Clean HTML
+            text = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r'<[^>]+>', ' ', text)
+            text = re.sub(r'\s+', ' ', text).strip()
+            return text, "SUCCESS"
+    except Exception:
+        return "", "FAILED"
 
 def main():
     parser = argparse.ArgumentParser(description="Antigravity CLI Generic Web Collection Wrapper with Dedup & Pipeline")
@@ -527,26 +565,51 @@ Output strictly as a JSON array of objects with keys: "title", "url", "published
         # Handle other fallback policies if required
         pass
 
-    # Step 4: Fetch Article Bodies (Python side) with body_source and diagnosis
+    # Step 4: Fetch Article Bodies (Python side) with body_source, fetchable check and diagnosis
+    fetchable_min_chars = profile.get("fetchable_min_chars", 600)
+    browser_fallback_enabled = profile.get("browser_fallback", False)
+
     enriched_candidates = []
+    fetchable_count = 0
+
     for cand in final_kept:
         url = cand.get("url", "")
-        fetched, source_status, length = fetch_article_body(url)
+        fetched, source_status, status_code, body_source, length = fetch_article_body(url, browser_fallback=browser_fallback_enabled)
         
-        cand_copy = dict(cand)
-        if fetched and length > len(cand.get("snippet", "")):
-            cand_copy["fetched_body"] = fetched[:2000]
-            cand_copy["body_source"] = "fetched"
-            cand_copy["body_length"] = length
-            cand_copy["body_diag"] = source_status
+        is_fetchable = (200 <= status_code < 300) and (length >= fetchable_min_chars)
+        if is_fetchable:
+            fetchable_count += 1
+            source_type = "fetched" if body_source == "http" else "browser"
         else:
-            # Fallback to snippet
+            source_type = "snippet_fallback"
+
+        cand_copy = dict(cand)
+        cand_copy["fetchable"] = is_fetchable
+        cand_copy["fetch_reason"] = source_status
+        cand_copy["fetch_status"] = status_code
+        cand_copy["body_length"] = length
+
+        if is_fetchable:
+            cand_copy["fetched_body"] = fetched[:2000]
+            cand_copy["body_source"] = body_source
+            cand_copy["snippet_only"] = False
+        else:
             cand_copy["fetched_body"] = cand.get("snippet", "")
             cand_copy["body_source"] = "snippet_fallback"
-            cand_copy["body_length"] = len(cand.get("snippet", ""))
-            cand_copy["body_diag"] = f"{source_status}_fallback_to_snippet"
-        
+            cand_copy["snippet_only"] = True
+
         enriched_candidates.append(cand_copy)
+
+    # Re-sort or prioritize fetchable items if needed, or ensure max_items selection
+    # Per spec: Select fetchable candidates first up to max_items, fallback to snippet items if needed
+    fetchable_items = [c for c in enriched_candidates if c.get("fetchable")]
+    snippet_items = [c for c in enriched_candidates if not c.get("fetchable")]
+
+    final_selected = (fetchable_items + snippet_items)[:max_items]
+
+    # Recount fetchable count in final selected items
+    final_fetchable_count = sum(1 for c in final_selected if c.get("fetchable"))
+    insufficient_flag = final_fetchable_count < max_items
 
     # Step 5: Article Generation based on fetched bodies
     generation_prompt = f"""
@@ -592,7 +655,11 @@ Instructions:
     with open(args.output, "w", encoding="utf-8") as f:
         f.write(s2_content)
 
-    # Save metadata JSON with extended audit records
+    # Save metadata JSON with extended audit records and summary statistics
+    total_candidates = len(enriched_candidates)
+    fetchable_candidates_count = sum(1 for c in enriched_candidates if c.get("fetchable"))
+    fetchable_rate = (fetchable_candidates_count / total_candidates) if total_candidates > 0 else 0.0
+
     meta = {
         "status": "OK",
         "target_date": args.target_date,
@@ -602,13 +669,21 @@ Instructions:
         "output_file": args.output,
         "session_count": session_count,
         "insufficient": insufficient_flag,
-        "final_item_count": len(final_kept),
+        "candidates_total": total_candidates,
+        "fetchable_count": fetchable_candidates_count,
+        "fetchable_rate": round(fetchable_rate * 100, 2),
+        "recollection_triggered": recollection_triggered,
+        "final_composition": {
+            "fetchable_count": final_fetchable_count,
+            "snippet_fallback_count": len(final_selected) - final_fetchable_count,
+            "total_selected": len(final_selected)
+        },
+        "final_item_count": len(final_selected),
         "dedup_records": {
             "mechanical_excluded": mech_excluded,
             "boundary_records": boundary_records
         },
-        "recollection_triggered": recollection_triggered,
-        "candidates_summary": enriched_candidates,
+        "candidates_summary": final_selected,
         "usage": usage_stats,
         "timestamp": datetime.now().isoformat()
     }
