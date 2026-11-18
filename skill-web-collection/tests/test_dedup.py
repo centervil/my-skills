@@ -54,7 +54,7 @@ $$出典: NEWSjp - スーパーコンピュータ「富岳」に不正アクセ�
                 "snippet": "全く新しい脆弱性"
             }
         ]
-        kept, excluded = mechanical_dedup(candidates, corpus_index)
+        kept, excluded, affinity = mechanical_dedup(candidates, corpus_index)
         self.assertEqual(len(kept), 1)
         self.assertEqual(kept[0]["url"], "https://example.com/new-vuln")
         self.assertEqual(len(excluded), 1)
@@ -69,10 +69,24 @@ $$出典: NEWSjp - スーパーコンピュータ「富岳」に不正アクセ�
                 "snippet": "富岳の運用システムが不正アクセスを受けたと発表"
             }
         ]
-        kept, excluded = mechanical_dedup(candidates, corpus_index)
+        kept, excluded, affinity = mechanical_dedup(candidates, corpus_index)
         self.assertEqual(len(kept), 0)
         self.assertEqual(len(excluded), 1)
         self.assertEqual(excluded[0]["reason"], "KEYWORD_MATCH")
+
+    def test_affinity_separation(self):
+        corpus_index = extract_corpus_index(self.reports_dir, "2026-11-17", 7)
+        candidates = [
+            {
+                "title": "スーパーコンピュータ関連の動向",
+                "url": "https://different-url.com/supercomputer",
+                "snippet": "動向"
+            }
+        ]
+        kept, excluded, affinity = mechanical_dedup(candidates, corpus_index)
+        # Has no affinity -> goes to kept
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(len(affinity), 0)
 
 if __name__ == "__main__":
     unittest.main()

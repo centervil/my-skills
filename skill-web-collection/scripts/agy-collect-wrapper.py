@@ -133,10 +133,47 @@ def extract_corpus_index(reports_dir, target_date_str, days_count=7):
                     pass
     return index
 
+def has_affinity(candidate, corpus_index):
+    """Check if candidate has affinity with corpus (partial key, org name, title vocabulary overlap)."""
+    title = candidate.get("title", "")
+    snippet = candidate.get("snippet", "")
+    url = candidate.get("url", "")
+    c_text = (title + " " + snippet + " " + url)
+
+    # Check URL domain match or path token match
+    try:
+        parsed_url = urlparse(url)
+        netloc = parsed_url.netloc
+        for cu in corpus_index.get("urls", set()):
+            try:
+                c_parsed = urlparse(cu)
+                if netloc and c_parsed.netloc and netloc == c_parsed.netloc:
+                    return True
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # Check keyword / org match
+    corpus_keywords = corpus_index.get("keywords", set())
+    for kw in corpus_keywords:
+        if len(kw) >= 2 and kw in c_text:
+            return True
+
+    # Check known orgs or key terms
+    for org in ["富岳", "スパコン", "ミツモア", "大阪府"]:
+        if org in c_text and any(org in t for t in corpus_index.get("titles", [])):
+            return True
+
+    return False
+
 def mechanical_dedup(candidates, corpus_index):
-    """Perform mechanical deduplication based on normalized URL, title similarity, and key entities."""
+    """Perform mechanical deduplication based on normalized URL, title similarity, and key entities.
+    Returns: (kept, excluded, affinity_candidates)
+    """
     kept = []
     excluded = []
+    affinity_candidates = []
 
     for c in candidates:
         url = c.get("url", "")
@@ -172,9 +209,13 @@ def mechanical_dedup(candidates, corpus_index):
             })
             continue
 
-        kept.append(c)
+        # 3. Check affinity
+        if has_affinity(c, corpus_index):
+            affinity_candidates.append(c)
+        else:
+            kept.append(c)
 
-    return kept, excluded
+    return kept, excluded, affinity_candidates
 
 def fetch_article_body(url, timeout=10):
     """Fetch article body via HTTP GET, fallback to snippet if fails."""
@@ -353,15 +394,14 @@ Return ONLY valid JSON array containing the candidates, without any extra markdo
 
     # Step 2: Mechanical Dedup
     corpus_index = extract_corpus_index(reports_dir, args.target_date, dedup_days)
-    kept_after_mech, mech_excluded = mechanical_dedup(candidates, corpus_index)
+    kept_after_mech, mech_excluded, affinity_candidates = mechanical_dedup(candidates, corpus_index)
 
     # Step 3: Boundary Judgment (Batch via agy if needed, or apply default)
-    # For ambiguous candidates (e.g. keywords partially overlap but not exact URL match)
-    final_kept = []
+    # Target: ONLY candidates that have affinity with corpus. Non-affinity candidates pass through directly.
+    final_kept = list(kept_after_mech) # non-affinity kept items
     boundary_records = []
     
-    # Identify boundary candidates (e.g. remaining kept items that need check)
-    boundary_candidates = kept_after_mech
+    boundary_candidates = affinity_candidates
     if boundary_candidates and reports_dir:
         boundary_prompt = f"""
 You are an expert fact-checker.
@@ -394,28 +434,33 @@ Return ONLY valid JSON array.
                         final_kept.append(cand)
                         boundary_records.append({"candidate": cand, "judgment": "KEEP_NEW_FACTS", "reason": res.get("reason")})
                     else:
-                        if boundary_default == "drop":
-                            boundary_records.append({"candidate": cand, "judgment": "DROP_BOUNDARY", "reason": res.get("reason", "No confirmed new facts")})
+                        if res and res.get("has_new_facts") is False:
+                            if boundary_default == "drop":
+                                boundary_records.append({"candidate": cand, "judgment": "DROP_BOUNDARY", "reason": res.get("reason", "No confirmed new facts")})
+                            else:
+                                final_kept.append(cand)
+                                boundary_records.append({"candidate": cand, "judgment": "KEEP_BOUNDARY_DEFAULT", "reason": "Default keep"})
                         else:
+                            # If model didn't return explicit judgment for this index, keep candidate or apply default
                             final_kept.append(cand)
-                            boundary_records.append({"candidate": cand, "judgment": "KEEP_BOUNDARY_DEFAULT", "reason": "Default keep"})
+                            boundary_records.append({"candidate": cand, "judgment": "KEEP_UNJUDGED", "reason": "Not explicitly dropped by model, kept"})
             except Exception:
-                # If json parse fails, apply default
+                # If JSON parse error or failure: keep mechanical dedup results (do not drop all)
                 for cand in boundary_candidates:
-                    if boundary_default == "drop":
-                        boundary_records.append({"candidate": cand, "judgment": "DROP_BOUNDARY_ERROR", "reason": "JSON parse error, dropped by default"})
-                    else:
-                        final_kept.append(cand)
-                        boundary_records.append({"candidate": cand, "judgment": "KEEP_BOUNDARY_ERROR", "reason": "JSON parse error, kept by default"})
-        else:
-            for cand in boundary_candidates:
-                if boundary_default == "drop":
-                    boundary_records.append({"candidate": cand, "judgment": "DROP_BOUNDARY_FAIL", "reason": "Session failed, dropped by default"})
-                else:
                     final_kept.append(cand)
-                    boundary_records.append({"candidate": cand, "judgment": "KEEP_BOUNDARY_FAIL", "reason": "Session failed, kept by default"})
+                    boundary_records.append({"candidate": cand, "judgment": "KEEP_BOUNDARY_ERROR_SKIPPED", "reason": "JSON parse error, boundary check skipped and kept by safety default"})
+                # Record error status in metadata or logs if needed
+                usage_stats["boundary_judgment_error"] = "JSON parse error"
+        else:
+            # If session failed / error: keep mechanical dedup results (do not drop all)
+            for cand in boundary_candidates:
+                final_kept.append(cand)
+                boundary_records.append({"candidate": cand, "judgment": "KEEP_BOUNDARY_FAIL_SKIPPED", "reason": f"Session failed ({b_status}), boundary check skipped and kept by safety default"})
+            usage_stats["boundary_judgment_error"] = f"Session failed: {b_status}"
     else:
-        final_kept = boundary_candidates
+        # No boundary candidates, just add affinity candidates to final kept
+        for cand in boundary_candidates:
+            final_kept.append(cand)
 
     recollection_triggered = False
     recollection_usage = {}
