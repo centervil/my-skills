@@ -7,6 +7,12 @@
     "max_items": 3,
     "time_window": "target_date"
   },
+  "dedup": {
+    "reports_dir": "../../../my-docs/security-news",
+    "days": 7
+  },
+  "boundary_default": "drop",
+  "insufficient_fallback": "reduce",
   "model": "gemini-3.8-flash-low",
   "effort": "low",
   "template_path": "../../../my-docs/templates/cybersecurity_news_template.md"
