@@ -37,16 +37,19 @@ AI がこの Skill を使用する際は、以下の手順に従ってくださ�
    - `AUTH_REQUIRED`: 認証切れ。
    - `FAILED`: その他エラー。
 
-## Design & Architecture (新パイプライン仕様 - Issue #7 & #9)
-- **新パイプラインの流れ (Issue #9 更新版)**:
-  1. **候補先行収集 (Session 1)**: 必要件数（`max_items`）に対し約2倍強（例: cybersecurity は 3件に対し 7件）の構造化候補リストを収集。
-  2. **機械的 Dedup (Python側)**: 直近レポートコーパスと照合し、重複を除外。
-  3. **取得可能性判定 (Python側)**: 機械的 dedup の生存候補に対し本文取得（第一段 HTTP 2xx 且つ文字数 ≥ `fetchable_min_chars` 既定600）を試行。失敗が 403 でプロファイル `browser_fallback` 有効時は第二段（Playwright 実ブラウザ遅延読み込み）を試行（非対応環境では自動無効化）。404 は対象外。判定結果（`fetchable`, `fetch_reason`, `fetch_status`, `body_source`, `body_length`）をメタデータに記録。取得本文はキャッシュ。
-  4. **再収集の条件拡張 (Session 1.8 - 条件付き最大1回)**: 取得可能件数 < max_items の場合（従来の dedup 後不足も含む）に再収集を発動。上限は追加1回まで。再収集では既見の全 URL を除外。
-  5. **境界判定 (Session 1.5 - 再収集の後)**: 再収集の後に1回だけ最終プールへ実施し、セッション総数上限4を維持（デフォルト keep）。
-  6. **選別と insufficient**: `fetchable` な候補を優先して `max_items` まで選別。不足分はスニペット項目で補充し `snippet_only: true` を明示。選別された fetchable が max_items 未満の場合は `insufficient: true` とし理由を記録（公開は止めない）。
-  7. **本文ベース生成 (Session 2)**: 取得済み本文・スニペットを基に記事化。メタデータにサマリ（`candidates_total`, `fetchable_count`, 取得可能率, 再収集の発動有無, 最終構成）を追加。
+## Design & Architecture (新パイプライン仕様 - Issue #7, #9, #12 RSS優先化)
+- **フィード登録ファイル (`cybersecurity_feeds.json`) と可変管理 (Issue #12)**:
+  - 置き場所: `skill-web-collection/profiles/cybersecurity_feeds.json`（プロファイル `cybersecurity_news.json` から `"feeds_file": "cybersecurity_feeds.json"` で相対参照）。
+  - 項目: `id`（識別子）, `name`（名称）, `url`（フィードURL）, `region` (`domestic` / `overseas`), `type` (`public` / `media` / `blog` 等), `enabled` (真偽), `notes`（備考）。
+  - **フィード追加手順**: コード変更は一切不要。`cybersecurity_feeds.json` に新しいフィードのエントリを1つ追加し、`enabled: true` に設定の上、単体テストを実行して妥当性を確認するだけで完了します。
+- **RSS 優先フローの流れ (Issue #12 更新版)**:
+  1. **RSS プール収集 (非LLM・決定スクリプト `rss_collect.py`)**: `feeds_file` があるプロファイルでは、まず指定された RSS / Atom フィード群から対象日の JST 暦日 `[00:00, 24:00)` のアイテムを抽出し、候補リスト（`origin: "rss"`）を作成。フィードごとの失敗はスキップして記録。
+  2. **機械的 Dedup (Python側)**: 直近レポートコーパスと照合し重複を除外。
+  3. **取得可能性判定 (Python側)**: 生存候補に対し HTTP 本文取得可能性（HTTP 2xx 且つ文字数 ≥ `fetchable_min_chars`）を判定。
+  4. **agy 補充 (条件付き最大1回)**: fetchable な候補数が `max_items` 未満の場合のみ、従来の agy Web 検索を用いた再収集で不足分を補充（既見 URL 除外、補充候補には `origin: "agy"` を付与）。十分な場合は agy 検索セッションをスキップ。
+  5. **境界判定 (Session 1.5)**: 必要に応じて1回実施。
+  6. **選別・本文ベース生成**: 記事生成。メタデータにフィード別結果、由来内訳（RSS由来 / agy補充）を記録。
 - **セッション会計**:
-  - 1回の実行あたり agy セッション総数の上限は **最大4**。実績をメタデータ JSON に記録。
+  - RSS 優先化により、1回の実行あたりの agy セッション総数の上限は **最大3**（補充 1 ＋ 境界 1 ＋ 生成 1）に削減（RSSが十分な場合は最大2）。
 - **トークン予算レンジ (実測ベース)**:
-  - 候補先行収集・バッチ判定・再収集・本文ベース生成を合わせた1回あたりの想定レンジ: **約 40k 〜 80k トークン**（#4 の実測 17.8k〜39.6k をベースに、プール拡大とDedup/境界判定追加を踏まえた新方式の規模）。
+  - 効率化により、LLM 呼び出しを最小限に抑えつつ安定したニュース収集を実現。

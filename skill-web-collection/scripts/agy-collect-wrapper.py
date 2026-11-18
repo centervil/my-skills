@@ -16,6 +16,15 @@ from datetime import datetime, timedelta
 import urllib.request
 from urllib.parse import urlparse, urlunparse
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+if script_dir not in sys.path:
+    sys.path.append(script_dir)
+try:
+    from rss_collect import collect_all_rss, load_and_validate_feeds
+except ImportError:
+    collect_all_rss = None
+    load_and_validate_feeds = None
+
 def classify_error(stderr_text):
     """Classify error into RATE_LIMITED, AUTH_REQUIRED, or FAILED."""
     lower = stderr_text.lower()
@@ -392,9 +401,29 @@ def main():
     with open(template_path, "r", encoding="utf-8") as f:
         template_content = f.read()
 
-    # Step 1: Candidate Prior Collection (Pool size: max_items * 2 + 1, e.g. 7 for max_items=3)
-    pool_size = max_items * 2 + 1
-    collection_prompt = f"""
+    # Step 1: Candidate Prior Collection (RSS prioritized if feeds_file is configured)
+    feeds_file_rel = profile.get("feeds_file", "")
+    feeds_file = resolve_path(feeds_file_rel, args.profile) if feeds_file_rel else ""
+    
+    candidates = []
+    feed_results = []
+    rss_collection_used = False
+
+    if feeds_file and os.path.exists(feeds_file):
+        rss_collection_used = True
+        print(f"Collecting candidates from RSS feeds file: {feeds_file}...")
+        try:
+            candidates, feed_results = collect_all_rss(feeds_file, args.target_date)
+            for c in candidates:
+                if "origin" not in c:
+                    c["origin"] = "rss"
+        except Exception as e:
+            print(f"Error during RSS collection: {e}", file=sys.stderr)
+            feed_results = [{"status": "ERROR", "error_message": str(e)}]
+            candidates = []
+    else:
+        pool_size = max_items * 2 + 1
+        collection_prompt = f"""
 You are an expert web research agent.
 Target Date: {args.target_date}
 Theme: {theme}
@@ -409,46 +438,47 @@ Output the candidates strictly as a JSON array of objects with the following key
 - "snippet": string
 Return ONLY valid JSON array containing the candidates, without any extra markdown wrappers or conversational text if possible.
 """
-    print(f"Running Session 1 (Candidate Collection) with model {model}...")
-    session_count += 1
-    s1_status, s1_content, s1_usage = run_agy_session(collection_prompt, model, effort)
-    usage_stats["collection"] = s1_usage
+        print(f"Running Session 1 (Candidate Collection) with model {model}...")
+        session_count += 1
+        s1_status, s1_content, s1_usage = run_agy_session(collection_prompt, model, effort)
+        usage_stats["collection"] = s1_usage
 
-    if s1_status != "OK":
-        meta = {
-            "status": s1_status,
-            "target_date": args.target_date,
-            "profile": os.path.basename(args.profile),
-            "model": model,
-            "session": "collection",
-            "error_message": s1_content,
-            "session_count": session_count,
-            "usage": usage_stats,
-            "timestamp": datetime.now().isoformat()
-        }
-        with open(args.metadata_output, "w", encoding="utf-8") as f:
-            json.dump(meta, f, ensure_ascii=False, indent=2)
-        sys.exit(1)
+        if s1_status != "OK":
+            meta = {
+                "status": s1_status,
+                "target_date": args.target_date,
+                "profile": os.path.basename(args.profile),
+                "model": model,
+                "session": "collection",
+                "error_message": s1_content,
+                "session_count": session_count,
+                "usage": usage_stats,
+                "timestamp": datetime.now().isoformat()
+            }
+            with open(args.metadata_output, "w", encoding="utf-8") as f:
+                json.dump(meta, f, ensure_ascii=False, indent=2)
+            sys.exit(1)
 
-    # Parse candidate items from JSON output
-    candidates = []
-    try:
-        # Clean markdown code blocks if any
-        clean_json_str = s1_content.strip()
-        if clean_json_str.startswith("```"):
-            clean_json_str = re.sub(r'^```(?:json)?\s*', '', clean_json_str)
-            clean_json_str = re.sub(r'\s*```$', '', clean_json_str)
-        candidates = json.loads(clean_json_str)
-        if not isinstance(candidates, list):
-            candidates = candidates.get("candidates", [])
-    except Exception:
-        # Fallback regex search for json list
+        # Parse candidate items from JSON output
         try:
-            m = re.search(r'\[\s*\{.*\}\s*\]', s1_content, re.DOTALL)
-            if m:
-                candidates = json.loads(m.group(0))
+            clean_json_str = s1_content.strip()
+            if clean_json_str.startswith("```"):
+                clean_json_str = re.sub(r'^```(?:json)?\s*', '', clean_json_str)
+                clean_json_str = re.sub(r'\s*```$', '', clean_json_str)
+            candidates = json.loads(clean_json_str)
+            if not isinstance(candidates, list):
+                candidates = candidates.get("candidates", [])
         except Exception:
-            candidates = []
+            try:
+                m = re.search(r'\[\s*\{.*\}\s*\]', s1_content, re.DOTALL)
+                if m:
+                    candidates = json.loads(m.group(0))
+            except Exception:
+                candidates = []
+
+        for c in candidates:
+            if "origin" not in c:
+                c["origin"] = "agy"
 
     candidates_total_count = len(candidates)
 
@@ -525,6 +555,9 @@ Output strictly as a JSON array of objects with keys: "title", "url", "published
                 new_items = json.loads(rc_clean)
                 if isinstance(new_items, list):
                     candidates_total_count += len(new_items)
+                    for nc in new_items:
+                        if "origin" not in nc:
+                            nc["origin"] = "agy"
                     # Apply mechanical dedup and fetchability to new items
                     new_kept, new_mech_exc, new_affinity = mechanical_dedup(new_items, corpus_index)
                     mech_excluded.extend(new_mech_exc)
@@ -657,6 +690,14 @@ Instructions:
     dedup_survivors_count = len(all_dedup_survivors)
     fetchable_rate_val = (len(fetchable_survivors) / dedup_survivors_count) if dedup_survivors_count > 0 else 0.0
 
+    origin_breakdown = {"rss": 0, "agy": 0}
+    for c in final_selected:
+        orig = c.get("origin", "agy")
+        if orig in origin_breakdown:
+            origin_breakdown[orig] += 1
+        else:
+            origin_breakdown[orig] = 1
+
     meta = {
         "status": "OK",
         "target_date": args.target_date,
@@ -665,6 +706,9 @@ Instructions:
         "effort": effort,
         "output_file": args.output,
         "session_count": session_count,
+        "rss_collection_used": rss_collection_used,
+        "feed_results": feed_results,
+        "origin_breakdown": origin_breakdown,
         "insufficient": insufficient_flag,
         "insufficient_reason": insufficient_reason,
         "candidates_total": candidates_total_count,

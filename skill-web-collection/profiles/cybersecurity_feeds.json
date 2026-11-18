@@ -1,0 +1,92 @@
+[
+  {
+    "id": "security_next",
+    "name": "Security NEXT",
+    "url": "https://www.security-next.com/feed",
+    "region": "domestic",
+    "type": "media",
+    "enabled": true,
+    "notes": "国内セキュリティニュースサイト"
+  },
+  {
+    "id": "scannetsecurity",
+    "name": "ScanNetSecurity",
+    "url": "https://scan.netsecurity.ne.jp/rss/index.rdf",
+    "region": "domestic",
+    "type": "media",
+    "enabled": true,
+    "notes": "国内セキュリティ情報"
+  },
+  {
+    "id": "jpcert",
+    "name": "JPCERT/CC",
+    "url": "https://www.jpcert.or.jp/rss/jpcert.rdf",
+    "region": "domestic",
+    "type": "public",
+    "enabled": true,
+    "notes": "JPCERTコーディネーションセンター注意報・お知らせ"
+  },
+  {
+    "id": "ipa",
+    "name": "IPA",
+    "url": "https://www.ipa.go.jp/security/alert-rss.rdf",
+    "region": "domestic",
+    "type": "public",
+    "enabled": true,
+    "notes": "IPA 独立行政法人情報処理推進機構 重要なセキュリティ情報"
+  },
+  {
+    "id": "jvn",
+    "name": "JVN",
+    "url": "https://jvn.jp/rss/jvn.rdf",
+    "region": "domestic",
+    "type": "public",
+    "enabled": true,
+    "notes": "JVN脆弱性対策情報"
+  },
+  {
+    "id": "piyolog",
+    "name": "piyolog",
+    "url": "https://piyolog.hatenadiary.jp/rss",
+    "region": "domestic",
+    "type": "blog",
+    "enabled": true,
+    "notes": "piyolog セキュリティブログ"
+  },
+  {
+    "id": "cisa",
+    "name": "CISA",
+    "url": "https://www.cisa.gov/cybersecurity-advisories/all.xml",
+    "region": "overseas",
+    "type": "public",
+    "enabled": true,
+    "notes": "CISA Cybersecurity Advisories"
+  },
+  {
+    "id": "bleepingcomputer",
+    "name": "BleepingComputer",
+    "url": "https://www.bleepingcomputer.com/feed/",
+    "region": "overseas",
+    "type": "media",
+    "enabled": true,
+    "notes": "BleepingComputer News"
+  },
+  {
+    "id": "thehackernews",
+    "name": "The Hacker News",
+    "url": "https://feeds.feedburner.com/TheHackersNews",
+    "region": "overseas",
+    "type": "media",
+    "enabled": true,
+    "notes": "The Hacker News"
+  },
+  {
+    "id": "krebsonsecurity",
+    "name": "Krebs on Security",
+    "url": "https://krebsonsecurity.com/feed/",
+    "region": "overseas",
+    "type": "blog",
+    "enabled": true,
+    "notes": "Krebs on Security Blog"
+  }
+]
