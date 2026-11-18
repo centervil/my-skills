@@ -194,6 +194,11 @@ def fetch_and_parse_feed(feed, target_date_str):
             items = root.findall('item')
         if not items:
             items = root.findall('.//item')
+        if not items:
+            # Namespace agnostic search for item in rdf
+            for elem in root.iter():
+                if elem.tag.split('}')[-1].lower() == 'item':
+                    items.append(elem)
     elif root_tag == 'feed': # Atom
         # Handle namespace for Atom
         ns = {'atom': 'http://www.w3.org/2005/Atom'}
@@ -208,52 +213,60 @@ def fetch_and_parse_feed(feed, target_date_str):
     item_dates = []
 
     for item in items:
-        # Extract title, link, date, description/content
-        title_elem = item.find('title')
-        if title_elem is None or not title_elem.text:
+        # Extract title, link, date, description/content namespace-agnostically (by local name)
+        title = ""
+        for child in item:
+            tag_name = child.tag.split('}')[-1].lower()
+            if tag_name == 'title':
+                if child.text and child.text.strip():
+                    title = child.text.strip()
+                    break
+        if not title:
+            # Fallback direct find
+            title_elem = item.find('title')
+            if title_elem is not None and title_elem.text:
+                title = title_elem.text.strip()
+        if not title:
             continue
-        title = title_elem.text.strip()
 
-        # Link extraction
+        # Link extraction namespace-agnostically
         link = ""
-        link_elem = item.find('link')
-        if link_elem is not None:
-            if link_elem.text and link_elem.text.strip():
-                link = link_elem.text.strip()
-            elif 'href' in link_elem.attrib:
-                link = link_elem.attrib['href'].strip()
-        
-        # Atom alternative link fallback or guid/id
+        for child in item:
+            tag_name = child.tag.split('}')[-1].lower()
+            if tag_name == 'link':
+                if child.text and child.text.strip():
+                    link = child.text.strip()
+                    break
+                elif 'href' in child.attrib:
+                    link = child.attrib['href'].strip()
+                    break
         if not link:
-            for child in item:
-                tag_name = child.tag.split('}')[-1].lower()
-                if tag_name == 'link':
-                    if child.text and child.text.strip():
-                        link = child.text.strip()
-                        break
-                    elif 'href' in child.attrib:
-                        link = child.attrib['href'].strip()
-                        break
+            link_elem = item.find('link')
+            if link_elem is not None:
+                if link_elem.text and link_elem.text.strip():
+                    link = link_elem.text.strip()
+                elif 'href' in link_elem.attrib:
+                    link = link_elem.attrib['href'].strip()
+        if not link and 'about' in item.attrib:
+            link = item.attrib['about'].strip()
 
         if not link:
             continue
 
-        # Date extraction (pubDate, dc:date, published, updated)
+        # Date extraction (pubDate, dc:date, published, updated) namespace-agnostically
         date_str = ""
-        for date_tag in ['pubDate', 'date', 'published', 'updated', '{http://purl.org/dc/elements/1.1/}date']:
-            d_elem = item.find(date_tag)
-            if d_elem is not None and d_elem.text and d_elem.text.strip():
-                date_str = d_elem.text.strip()
-                break
-        
-        # Fallback search by tag local name (case-insensitive or namespace-agnostic)
+        for child in item:
+            tag_name = child.tag.split('}')[-1].lower()
+            if tag_name in ['date', 'pubdate', 'published', 'updated']:
+                if child.text and child.text.strip():
+                    date_str = child.text.strip()
+                    break
         if not date_str:
-            for child in item:
-                tag_name = child.tag.split('}')[-1].lower()
-                if tag_name in ['date', 'pubdate', 'published', 'updated', 'dc:date']:
-                    if child.text and child.text.strip():
-                        date_str = child.text.strip()
-                        break
+            for date_tag in ['pubDate', 'date', 'published', 'updated', '{http://purl.org/dc/elements/1.1/}date']:
+                d_elem = item.find(date_tag)
+                if d_elem is not None and d_elem.text and d_elem.text.strip():
+                    date_str = d_elem.text.strip()
+                    break
 
         parsed_dt = parse_date(date_str)
         if not parsed_dt:
@@ -267,20 +280,20 @@ def fetch_and_parse_feed(feed, target_date_str):
         dt_jst = parsed_dt.astimezone(JST)
 
         if window_start_jst <= dt_jst < window_end_jst:
-            # Extract description / summary / content
+            # Extract description / summary / content namespace-agnostically
             raw_desc = ""
-            for desc_tag in ['description', 'summary', 'content', '{http://purl.org/rss/1.0/modules/content/}encoded']:
-                desc_elem = item.find(desc_tag)
-                if desc_elem is not None and desc_elem.text and desc_elem.text.strip():
-                    raw_desc = desc_elem.text.strip()
-                    break
+            for child in item:
+                tag_name = child.tag.split('}')[-1].lower()
+                if tag_name in ['description', 'summary', 'content', 'encoded']:
+                    if child.text and child.text.strip():
+                        raw_desc = child.text.strip()
+                        break
             if not raw_desc:
-                for child in item:
-                    tag_name = child.tag.split('}')[-1].lower()
-                    if tag_name in ['description', 'summary', 'content']:
-                        if child.text and child.text.strip():
-                            raw_desc = child.text.strip()
-                            break
+                for desc_tag in ['description', 'summary', 'content', '{http://purl.org/rss/1.0/modules/content/}encoded']:
+                    desc_elem = item.find(desc_tag)
+                    if desc_elem is not None and desc_elem.text and desc_elem.text.strip():
+                        raw_desc = desc_elem.text.strip()
+                        break
 
             snippet = clean_html_snippet(raw_desc, max_len=300)
 

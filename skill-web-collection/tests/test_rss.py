@@ -192,8 +192,8 @@ class TestRSSParsingAndWindow(unittest.TestCase):
     def test_feed_parsing_rss1_rdf_dc_date(self):
         rss_rdf = """<?xml version="1.0" encoding="UTF-8"?>
         <rdf:RDF
-          xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
           xmlns="http://purl.org/rss/1.0/"
+          xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
           xmlns:dc="http://purl.org/dc/elements/1.1/">
           <channel rdf:about="https://scan.netsecurity.ne.jp/rss/index.rdf">
             <title>ScanNetSecurity</title>
@@ -222,6 +222,17 @@ class TestRSSParsingAndWindow(unittest.TestCase):
             "type": "media",
             "enabled": True
         }
+
+        # Monkeypatch urllib.request.urlopen
+        class MockResponse:
+            def __init__(self, content):
+                self.content = content.encode("utf-8")
+            def read(self):
+                return self.content
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                pass
 
         original_urlopen = rss_collect.urllib.request.urlopen
         try:
