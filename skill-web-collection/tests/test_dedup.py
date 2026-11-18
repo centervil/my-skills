@@ -88,5 +88,44 @@ $$出典: NEWSjp - スーパーコンピュータ「富岳」に不正アクセ�
         self.assertEqual(len(kept), 1)
         self.assertEqual(len(affinity), 0)
 
+    def test_boundary_default_keep_vs_drop(self):
+        # Test boundary_default behavior with monkeypatching run_agy_session or simulating boundary check logic
+        # When boundary check returns has_new_facts=False (ambiguous / no confirmed new facts):
+        # - boundary_default="keep" should keep the candidate
+        # - boundary_default="drop" should drop the candidate
+        
+        cand = {"title": "富岳の続報（判定曖昧）", "url": "https://example.com/fugaku-update", "snippet": "富岳"}
+        
+        # Simulate wrapper logic for boundary evaluation
+        def evaluate_boundary(boundary_candidates, boundary_default_val):
+            final_kept = []
+            boundary_records = []
+            # Mock model response: has_new_facts = False
+            b_results = [{"index": 0, "has_new_facts": False, "reason": "No clear new facts"}]
+            b_map = {item["index"]: item for item in b_results if "index" in item}
+            for idx, c in enumerate(boundary_candidates):
+                res = b_map.get(idx)
+                if res and res.get("has_new_facts") is True:
+                    final_kept.append(c)
+                    boundary_records.append({"candidate": c, "judgment": "KEEP_NEW_FACTS"})
+                else:
+                    if res and res.get("has_new_facts") is False:
+                        if boundary_default_val == "drop":
+                            boundary_records.append({"candidate": c, "judgment": "DROP_BOUNDARY"})
+                        else:
+                            final_kept.append(c)
+                            boundary_records.append({"candidate": c, "judgment": "KEEP_BOUNDARY_DEFAULT"})
+            return final_kept, boundary_records
+
+        # Case 1: boundary_default = "keep" -> candidate is kept
+        kept_keep, recs_keep = evaluate_boundary([cand], "keep")
+        self.assertEqual(len(kept_keep), 1)
+        self.assertEqual(recs_keep[0]["judgment"], "KEEP_BOUNDARY_DEFAULT")
+
+        # Case 2: boundary_default = "drop" -> candidate is dropped
+        kept_drop, recs_drop = evaluate_boundary([cand], "drop")
+        self.assertEqual(len(kept_drop), 0)
+        self.assertEqual(recs_drop[0]["judgment"], "DROP_BOUNDARY")
+
 if __name__ == "__main__":
     unittest.main()

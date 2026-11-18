@@ -319,7 +319,7 @@ def main():
     reports_dir_rel = dedup_cfg.get("reports_dir", "")
     reports_dir = resolve_path(reports_dir_rel, args.profile) if reports_dir_rel else ""
     dedup_days = dedup_cfg.get("days", 7)
-    boundary_default = profile.get("boundary_default", "drop")
+    boundary_default = profile.get("boundary_default", "keep")
     insufficient_fallback = profile.get("insufficient_fallback", "reduce")
 
     if not raw_template_path:
