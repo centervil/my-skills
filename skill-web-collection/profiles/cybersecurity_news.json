@@ -11,7 +11,7 @@
     "reports_dir": "../../../my-docs/security-news",
     "days": 7
   },
-  "boundary_default": "drop",
+  "boundary_default": "keep",
   "insufficient_fallback": "reduce",
   "model": "gemini-3.8-flash-low",
   "effort": "low",
