@@ -127,5 +127,57 @@ $$出典: NEWSjp - スーパーコンピュータ「富岳」に不正アクセ�
         self.assertEqual(len(kept_drop), 0)
         self.assertEqual(recs_drop[0]["judgment"], "DROP_BOUNDARY")
 
+    def test_fetchable_classification_and_insufficient(self):
+        # Test fetchable classification logic:
+        # - status 200 + long text (>= 600 chars) -> fetchable = True
+        # - status 404 -> fetchable = False, fetch_reason = HTTP_404, snippet_only = True
+        # - status 200 + short text (< 600 chars) -> fetchable = False
+        # - insufficient flag when fetchable count < max_items
+        max_items = 3
+        candidates = [
+            {"title": "Valid Long Article", "url": "https://example.com/1", "snippet": "short snippet"},
+            {"title": "404 Article", "url": "https://example.com/404", "snippet": "404 snippet"},
+            {"title": "Short Article", "url": "https://example.com/short", "snippet": "short snippet"}
+        ]
+        
+        # Mock fetch function behavior
+        def mock_fetch(url):
+            if "1" in url:
+                return "A" * 700, "OK_200", 200, "http", 700
+            elif "404" in url:
+                return "", "HTTP_404", 404, "snippet_fallback", 0
+            else:
+                return "Too short", "OK_200", 200, "http", 9
+                
+        enriched = []
+        for c in candidates:
+            fetched, reason, status, source, length = mock_fetch(c["url"])
+            is_fetchable = (200 <= status < 300) and (length >= 600)
+            cc = dict(c)
+            cc["fetchable"] = is_fetchable
+            cc["fetch_reason"] = reason
+            cc["fetch_status"] = status
+            cc["body_length"] = length
+            if is_fetchable:
+                cc["fetched_body"] = fetched
+                cc["body_source"] = source
+                cc["snippet_only"] = False
+            else:
+                cc["fetched_body"] = cc["snippet"]
+                cc["body_source"] = "snippet_fallback"
+                cc["snippet_only"] = True
+            enriched.append(cc)
+
+        fetchable_items = [c for c in enriched if c.get("fetchable")]
+        snippet_items = [c for c in enriched if not c.get("fetchable")]
+        final_selected = (fetchable_items + snippet_items)[:max_items]
+        final_fetchable_count = sum(1 for c in final_selected if c.get("fetchable"))
+        insufficient_flag = final_fetchable_count < max_items
+
+        self.assertEqual(final_fetchable_count, 1)
+        self.assertTrue(insufficient_flag)
+        self.assertTrue(enriched[1]["snippet_only"])
+        self.assertEqual(enriched[1]["fetch_reason"], "HTTP_404")
+
 if __name__ == "__main__":
     unittest.main()

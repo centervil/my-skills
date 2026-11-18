@@ -13,6 +13,8 @@
   },
   "boundary_default": "keep",
   "insufficient_fallback": "reduce",
+  "fetchable_min_chars": 600,
+  "browser_fallback": false,
   "model": "gemini-3.8-flash-low",
   "effort": "low",
   "template_path": "../../../my-docs/templates/cybersecurity_news_template.md"
