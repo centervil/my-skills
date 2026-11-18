@@ -264,14 +264,19 @@ def fetch_article_body(url, timeout=10, browser_fallback=False):
                     text = text_full
                     length = len(text)
 
-            return text[:2000], "OK", status_code, "http", length
+            fetch_reason = "OK"
+            if length < 600:
+                fetch_reason = "TOO_SHORT"
+
+            return text[:2000], fetch_reason, status_code, "http", length
     except urllib.error.HTTPError as e:
         status_code = e.code
         # Stage 2: Browser fallback on HTTP 403 if enabled
         if status_code == 403 and browser_fallback:
             pw_text, pw_status = fetch_via_playwright(url, timeout=timeout)
             if pw_text and len(pw_text) >= 100:
-                return pw_text[:2000], "BROWSER_OK", 200, "browser", len(pw_text)
+                pw_reason = "OK" if len(pw_text) >= 600 else "TOO_SHORT"
+                return pw_text[:2000], pw_reason, 200, "browser", len(pw_text)
             else:
                 return "", "BROWSER_FAIL", 403, "snippet_fallback", 0
         elif status_code == 404:

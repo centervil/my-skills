@@ -189,6 +189,59 @@ class TestRSSParsingAndWindow(unittest.TestCase):
         finally:
             rss_collect.urllib.request.urlopen = original_urlopen
 
+    def test_feed_parsing_rss1_rdf_dc_date(self):
+        rss_rdf = """<?xml version="1.0" encoding="UTF-8"?>
+        <rdf:RDF
+          xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+          xmlns="http://purl.org/rss/1.0/"
+          xmlns:dc="http://purl.org/dc/elements/1.1/">
+          <channel rdf:about="https://scan.netsecurity.ne.jp/rss/index.rdf">
+            <title>ScanNetSecurity</title>
+            <link>https://scan.netsecurity.ne.jp/</link>
+          </channel>
+          <item rdf:about="https://scan.netsecurity.ne.jp/article/2026/11/17/55555.html">
+            <title>RDF Target Day Item</title>
+            <link>https://scan.netsecurity.ne.jp/article/2026/11/17/55555.html</link>
+            <dc:date>2026-11-17T12:00:00+09:00</dc:date>
+            <description>RDF item description with dc:date.</description>
+          </item>
+          <item rdf:about="https://scan.netsecurity.ne.jp/article/2026/11/17/unknown.html">
+            <title>RDF Unknown Date Item</title>
+            <link>https://scan.netsecurity.ne.jp/article/2026/11/17/unknown.html</link>
+            <dc:date>invalid-date-string</dc:date>
+            <description>RDF item with invalid date to test unknown_date_count.</description>
+          </item>
+        </rdf:RDF>
+        """
+
+        feed_def = {
+            "id": "scannetsecurity",
+            "name": "ScanNetSecurity",
+            "url": "https://scan.netsecurity.ne.jp/rss/index.rdf",
+            "region": "domestic",
+            "type": "media",
+            "enabled": True
+        }
+
+        original_urlopen = rss_collect.urllib.request.urlopen
+        try:
+            rss_collect.urllib.request.urlopen = lambda req, timeout=15: MockResponse(rss_rdf)
+            
+            candidates, meta = fetch_and_parse_feed(feed_def, "2026-11-17")
+            
+            self.assertEqual(meta["status"], "OK")
+            self.assertEqual(meta["total_items_scanned"], 2)
+            self.assertEqual(meta["window_candidates_count"], 1)
+            self.assertEqual(meta["unknown_date_count"], 1)
+            
+            self.assertEqual(len(candidates), 1)
+            self.assertEqual(candidates[0]["title"], "RDF Target Day Item")
+            self.assertEqual(candidates[0]["url"], "https://scan.netsecurity.ne.jp/article/2026/11/17/55555.html")
+            self.assertEqual(candidates[0]["origin"], "rss")
+            self.assertEqual(candidates[0]["feed_id"], "scannetsecurity")
+        finally:
+            rss_collect.urllib.request.urlopen = original_urlopen
+
     def test_feed_failure_isolation(self):
         feed_def = {
             "id": "broken_feed",

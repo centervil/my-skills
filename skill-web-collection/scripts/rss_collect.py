@@ -186,10 +186,14 @@ def fetch_and_parse_feed(feed, target_date_str):
         channel = root.find('channel')
         if channel is not None:
             items = channel.findall('item')
-    elif 'rdf' in root_tag:
+    elif 'rdf' in root_tag or root_tag == 'rdf':
         items = root.findall('{http://purl.org/rss/1.0/}item')
         if not items:
+            items = root.findall('.//{http://purl.org/rss/1.0/}item')
+        if not items:
             items = root.findall('item')
+        if not items:
+            items = root.findall('.//item')
     elif root_tag == 'feed': # Atom
         # Handle namespace for Atom
         ns = {'atom': 'http://www.w3.org/2005/Atom'}
@@ -242,11 +246,11 @@ def fetch_and_parse_feed(feed, target_date_str):
                 date_str = d_elem.text.strip()
                 break
         
-        # Fallback search by tag local name
+        # Fallback search by tag local name (case-insensitive or namespace-agnostic)
         if not date_str:
             for child in item:
                 tag_name = child.tag.split('}')[-1].lower()
-                if 'date' in tag_name or 'published' in tag_name or 'updated' in tag_name:
+                if tag_name in ['date', 'pubdate', 'published', 'updated', 'dc:date']:
                     if child.text and child.text.strip():
                         date_str = child.text.strip()
                         break
