@@ -64,9 +64,9 @@ $$出典: NEWSjp - スーパーコンピュータ「富岳」に不正アクセ�
         corpus_index = extract_corpus_index(self.reports_dir, "2026-11-17", 7)
         candidates = [
             {
-                "title": "スパコン富岳で不正アクセス発生の続報か",
-                "url": "https://different-url.com/fugaku-hack",
-                "snippet": "富岳の運用システムが不正アクセスを受けたと発表"
+                "title": "スーパーコンピュータに不正アクセス発生の続報か",
+                "url": "https://different-url.com/supercomputer-hack",
+                "snippet": "スーパーコンピュータ富岳の運用システムが不正アクセスを受けたと発表スーパーコンピュータ"
             }
         ]
         kept, excluded, affinity = mechanical_dedup(candidates, corpus_index)

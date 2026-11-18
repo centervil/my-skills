@@ -160,11 +160,6 @@ def has_affinity(candidate, corpus_index):
         if len(kw) >= 2 and kw in c_text:
             return True
 
-    # Check known orgs or key terms
-    for org in ["富岳", "スパコン", "ミツモア", "大阪府"]:
-        if org in c_text and any(org in t for t in corpus_index.get("titles", [])):
-            return True
-
     return False
 
 def mechanical_dedup(candidates, corpus_index):
@@ -196,12 +191,12 @@ def mechanical_dedup(candidates, corpus_index):
         keyword_hits = 0
         corpus_keywords = corpus_index.get("keywords", set())
         for kw in corpus_keywords:
-            if len(kw) >= 3 and kw in c_text:
+            if len(kw) >= 2 and kw in c_text:
                 keyword_hits += 1
                 matched_keyword = kw
 
-        # If key entities like organization / incident name match significantly
-        if keyword_hits >= 2 or (any(org in c_text for org in ["富岳", "ミツモア", "大阪府"]) and any(org in "".join(corpus_index["titles"]) for org in ["富岳", "ミツモア", "大阪府"])):
+        # If key entities overlap significantly via corpus keywords (e.g. 2 or more matching keywords)
+        if keyword_hits >= 2:
             excluded.append({
                 "candidate": c,
                 "reason": "KEYWORD_MATCH",
@@ -218,24 +213,49 @@ def mechanical_dedup(candidates, corpus_index):
     return kept, excluded, affinity_candidates
 
 def fetch_article_body(url, timeout=10):
-    """Fetch article body via HTTP GET, fallback to snippet if fails."""
+    """Fetch article body via HTTP GET, diagnose status and extraction, fallback to snippet if fails."""
     if not url or not url.startswith("http"):
-        return ""
+        return "", "INVALID_URL", 0
     try:
         req = urllib.request.Request(
             url,
             headers={"User-Agent": "Mozilla/5.0 (Compatible; MySkillsWebCollector/1.0)"}
         )
         with urllib.request.urlopen(req, timeout=timeout) as response:
+            status_code = response.getcode()
             html = response.read().decode("utf-8", errors="ignore")
-            # Simple HTML tags removal
-            text = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL)
-            text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL)
+            
+            # Better extraction for article content (try article tag, main tag, or body text)
+            article_match = re.search(r'<article[^>]*>(.*?)</article>', html, flags=re.DOTALL | re.IGNORECASE)
+            main_match = re.search(r'<main[^>]*>(.*?)</main>', html, flags=re.DOTALL | re.IGNORECASE)
+            
+            raw_target = html
+            if article_match:
+                raw_target = article_match.group(1)
+            elif main_match:
+                raw_target = main_match.group(1)
+
+            # Simple HTML tags removal & cleanup
+            text = re.sub(r'<script[^>]*>.*?</script>', '', raw_target, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r'<[^>]+>', ' ', text)
+            # Remove excessive whitespace / boilerplate fragments if any
             text = re.sub(r'\s+', ' ', text).strip()
-            return text[:3000] # Cap raw body
-    except Exception:
-        return ""
+            
+            length = len(text)
+            if length < 100: # if extracted text is too short (e.g. just nav or boilerplate), fallback or use full html body
+                # Try full html body parse
+                text_full = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+                text_full = re.sub(r'<style[^>]*>.*?</style>', '', text_full, flags=re.DOTALL | re.IGNORECASE)
+                text_full = re.sub(r'<[^>]+>', ' ', text_full)
+                text_full = re.sub(r'\s+', ' ', text_full).strip()
+                if len(text_full) > length:
+                    text = text_full
+                    length = len(text)
+
+            return text[:2000], f"HTTP_{status_code}", length
+    except Exception as e:
+        return "", f"ERROR_{type(e).__name__}", 0
 
 def main():
     parser = argparse.ArgumentParser(description="Antigravity CLI Generic Web Collection Wrapper with Dedup & Pipeline")
@@ -497,20 +517,35 @@ Output strictly as a JSON array of objects with keys: "title", "url", "published
             except Exception:
                 pass
 
+    # Step 3b: Select down to max_items if we have more than max_items
+    if len(final_kept) > max_items:
+        # Keep collection order / newest priority
+        final_kept = final_kept[:max_items]
+
     insufficient_flag = len(final_kept) < max_items
     if insufficient_flag and insufficient_fallback != "reduce":
         # Handle other fallback policies if required
         pass
 
-    # Step 4: Fetch Article Bodies (Python side)
+    # Step 4: Fetch Article Bodies (Python side) with body_source and diagnosis
     enriched_candidates = []
     for cand in final_kept:
         url = cand.get("url", "")
-        body = fetch_article_body(url)
-        if not body:
-            body = cand.get("snippet", "")
+        fetched, source_status, length = fetch_article_body(url)
+        
         cand_copy = dict(cand)
-        cand_copy["fetched_body"] = body[:2000] # Cap to 2000 chars per design
+        if fetched and length > len(cand.get("snippet", "")):
+            cand_copy["fetched_body"] = fetched[:2000]
+            cand_copy["body_source"] = "fetched"
+            cand_copy["body_length"] = length
+            cand_copy["body_diag"] = source_status
+        else:
+            # Fallback to snippet
+            cand_copy["fetched_body"] = cand.get("snippet", "")
+            cand_copy["body_source"] = "snippet_fallback"
+            cand_copy["body_length"] = len(cand.get("snippet", ""))
+            cand_copy["body_diag"] = f"{source_status}_fallback_to_snippet"
+        
         enriched_candidates.append(cand_copy)
 
     # Step 5: Article Generation based on fetched bodies
