@@ -1,10 +1,11 @@
 {
   "theme": "Cybersecurity News",
+  "feeds_file": "cybersecurity_feeds.json",
   "sources": [
     "Major cybersecurity news outlets (BleepingComputer, The Hacker News, CISA advisories, Krebs on Security)"
   ],
   "constraints": {
-    "max_items": 3,
+    "max_items": 5,
     "time_window": "target_date"
   },
   "dedup": {
