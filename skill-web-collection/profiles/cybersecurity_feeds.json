@@ -88,5 +88,14 @@
     "type": "blog",
     "enabled": true,
     "notes": "Krebs on Security Blog"
+  },
+  {
+    "id": "rocket_boys_security_lab",
+    "name": "セキュリティ対策Lab",
+    "url": "https://rocket-boys.co.jp/security-measures-lab/category/security-news/feed",
+    "region": "domestic",
+    "type": "media",
+    "enabled": true,
+    "notes": "ユーザー指定で追加（2026-11-21）。脆弱性・情報漏えい等の国内セキュリティニュース。"
   }
 ]
